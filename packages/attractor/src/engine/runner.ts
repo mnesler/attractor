@@ -91,6 +91,8 @@ export interface RunnerConfig {
   working_directory?: string
   /** Callback for raw agent session events (tool calls, text deltas) within each node. */
   on_agent_event?: (event: import('@attractor/agent').SessionEvent) => void
+  /** How the pipeline was invoked, e.g. "claude_code", "github_issue". Default: "unknown" */
+  trigger?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -104,8 +106,15 @@ export class Runner {
   private onEvent: (event: PipelineEvent) => void
   private extraLintRules: LintRule[]
   private customTransforms: Transform[]
+  private defaultModel: string
+  private defaultProvider: string
+  private defaultTrigger: string
 
   constructor(config: RunnerConfig = {}) {
+    this.defaultModel = config.model ?? 'anthropic/claude-sonnet-4-6'
+    this.defaultProvider = config.api_key ? 'openrouter' : 'none'
+    this.defaultTrigger = config.trigger ?? 'unknown'
+
     // Auto-create AgentBackend from api_key if no backend provided
     if (config.backend === undefined && config.api_key) {
       this.backend = new AgentBackend({
@@ -201,7 +210,14 @@ export class Runner {
     )
     this.registry.register('parallel', parallelHandler)
 
-    this.emitEvent(makeEvent('pipeline_started', { name: graph.label || graph.id, goal: graph.goal, id: logsRoot }))
+    this.emitEvent(makeEvent('pipeline_started', {
+      name: graph.label || graph.id,
+      goal: graph.goal,
+      id: logsRoot,
+      model: this.defaultModel,
+      provider: this.defaultProvider,
+      trigger: runConfig.trigger ?? this.defaultTrigger,
+    }))
 
     const startTime = Date.now()
     let lastOutcome: Outcome = successOutcome()
@@ -275,7 +291,14 @@ export class Runner {
       const maxRetries = node.attrs.max_retries ?? graph.default_max_retry ?? 0
       const maxAttempts = maxRetries + 1
 
-      this.emitEvent(makeEvent('stage_started', { node_id: node.id, name: node.attrs.label ?? node.id, index: completedNodes.length }))
+      const stageModel = (node.attrs.llm_model as string | undefined) ?? this.defaultModel
+      this.emitEvent(makeEvent('stage_started', {
+        node_id: node.id,
+        name: node.attrs.label ?? node.id,
+        index: completedNodes.length,
+        model: stageModel,
+        provider: this.defaultProvider,
+      }))
       const stageStart = Date.now()
 
       const outcome = await this.executeWithRetry(node, context, graph, logsRoot, maxAttempts, nodeRetries)

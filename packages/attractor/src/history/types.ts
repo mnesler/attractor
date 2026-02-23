@@ -17,13 +17,21 @@ export interface StageRecord {
   /** Number of retries before this outcome (0 = first attempt succeeded) */
   retries: number
   failure_reason?: string
+  /** LLM model used for this stage, e.g. "anthropic/claude-sonnet-4-6" */
+  model: string
+  /** LLM provider used for this stage, e.g. "openrouter" */
+  provider: string
   /** Number of tool calls made during this stage */
   tool_calls: number
+  /** Per-tool call counts, e.g. { shell: 3, read_file: 2 } */
+  tool_breakdown: Record<string, number>
   /** Number of LLM round-trips (assistant responses) during this stage */
   llm_calls: number
   tokens_input: number
   tokens_output: number
   tokens_total: number
+  /** Estimated cost in USD for this stage (from provider response) */
+  estimated_cost_usd: number
 }
 
 export interface PipelineRun {
@@ -40,10 +48,21 @@ export interface PipelineRun {
   duration_ms?: number
   status: RunStatus
   stages: StageRecord[]
+  /** Default LLM model for the run */
+  model: string
+  /** LLM provider for the run */
+  provider: string
+  /** How the pipeline was invoked, e.g. "claude_code", "github_issue" */
+  trigger: string
   /** Totals across all stages */
   total_tool_calls: number
   total_llm_calls: number
+  total_retries: number
   tokens_input: number
   tokens_output: number
   tokens_total: number
+  /** Total estimated cost in USD across all stages */
+  estimated_cost_usd: number
+  /** Rolled-up per-tool call counts across all stages */
+  tool_breakdown: Record<string, number>
 }

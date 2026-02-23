@@ -38,7 +38,7 @@ async function runFakePipeline(recorder: PipelineRecorder, opts: {
     { node_id: 'test', name: 'Run Tests' },
   ]
 
-  recorder.handler(makeEvent('pipeline_started', { name, goal: opts.goal ?? 'Do something', id: logsRoot }))
+  recorder.handler(makeEvent('pipeline_started', { name, goal: opts.goal ?? 'Do something', id: logsRoot, model: 'anthropic/claude-sonnet-4-6', provider: 'openrouter', trigger: 'test' }))
 
   for (const stage of stages) {
     recorder.handler(makeEvent('stage_started', { node_id: stage.node_id, name: stage.name }))
@@ -152,26 +152,26 @@ describe('PipelineRecorder', () => {
     expect(received.some(e => e.kind === 'pipeline_completed')).toBe(true)
   })
 
-  it('tracks tool calls and tokens via agentHandler', async () => {
+  it('tracks tool calls, tokens, cost, and tool_breakdown via agentHandler', async () => {
     const recorder = new PipelineRecorder(historyRoot)
 
-    recorder.handler(makeEvent('pipeline_started', { name: 'P', id: '/tmp/z' }))
-    recorder.handler(makeEvent('stage_started', { node_id: 'write', name: 'Write' }))
+    recorder.handler(makeEvent('pipeline_started', { name: 'P', id: '/tmp/z', model: 'anthropic/claude-sonnet-4-6', provider: 'openrouter', trigger: 'claude_code' }))
+    recorder.handler(makeEvent('stage_started', { node_id: 'write', name: 'Write', model: 'anthropic/claude-sonnet-4-6', provider: 'openrouter' }))
 
     recorder.agentHandler(makeAgentEvent(EventKind.TOOL_CALL_START, { tool_name: 'shell', call_id: '1' }))
     recorder.agentHandler(makeAgentEvent(EventKind.TOOL_CALL_START, { tool_name: 'write_file', call_id: '2' }))
     recorder.agentHandler(makeAgentEvent(EventKind.ASSISTANT_TEXT_END, {
       text: 'done',
-      usage: { input_tokens: 100, output_tokens: 50, total_tokens: 150 },
+      usage: { input_tokens: 100, output_tokens: 50, total_tokens: 150, raw: { cost: 0.002 } },
     }))
 
     recorder.handler(makeEvent('stage_completed', { node_id: 'write', name: 'Write', duration: 200 }))
 
-    recorder.handler(makeEvent('stage_started', { node_id: 'test', name: 'Test' }))
+    recorder.handler(makeEvent('stage_started', { node_id: 'test', name: 'Test', model: 'anthropic/claude-sonnet-4-6', provider: 'openrouter' }))
     recorder.agentHandler(makeAgentEvent(EventKind.TOOL_CALL_START, { tool_name: 'shell', call_id: '3' }))
     recorder.agentHandler(makeAgentEvent(EventKind.ASSISTANT_TEXT_END, {
       text: 'ok',
-      usage: { input_tokens: 80, output_tokens: 30, total_tokens: 110 },
+      usage: { input_tokens: 80, output_tokens: 30, total_tokens: 110, raw: { cost: 0.001 } },
     }))
     recorder.handler(makeEvent('stage_completed', { node_id: 'test', name: 'Test', duration: 100 }))
 
@@ -181,21 +181,33 @@ describe('PipelineRecorder', () => {
     const runs = await readHistory(historyRoot)
     const run = runs[0]!
 
+    // Stage 0 checks
     expect(run.stages[0]!.tool_calls).toBe(2)
+    expect(run.stages[0]!.tool_breakdown).toEqual({ shell: 1, write_file: 1 })
     expect(run.stages[0]!.llm_calls).toBe(1)
     expect(run.stages[0]!.tokens_input).toBe(100)
     expect(run.stages[0]!.tokens_output).toBe(50)
     expect(run.stages[0]!.tokens_total).toBe(150)
+    expect(run.stages[0]!.estimated_cost_usd).toBeCloseTo(0.002)
+    expect(run.stages[0]!.model).toBe('anthropic/claude-sonnet-4-6')
+    expect(run.stages[0]!.provider).toBe('openrouter')
 
+    // Stage 1 checks
     expect(run.stages[1]!.tool_calls).toBe(1)
-    expect(run.stages[1]!.llm_calls).toBe(1)
+    expect(run.stages[1]!.tool_breakdown).toEqual({ shell: 1 })
     expect(run.stages[1]!.tokens_input).toBe(80)
 
+    // Run-level rollup
     expect(run.total_tool_calls).toBe(3)
     expect(run.total_llm_calls).toBe(2)
     expect(run.tokens_input).toBe(180)
     expect(run.tokens_output).toBe(80)
     expect(run.tokens_total).toBe(260)
+    expect(run.estimated_cost_usd).toBeCloseTo(0.003)
+    expect(run.tool_breakdown).toEqual({ shell: 2, write_file: 1 })
+    expect(run.model).toBe('anthropic/claude-sonnet-4-6')
+    expect(run.provider).toBe('openrouter')
+    expect(run.trigger).toBe('claude_code')
   })
 
   it('exposes currentRun during in-flight pipeline', () => {

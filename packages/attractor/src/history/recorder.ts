@@ -46,7 +46,7 @@ export class PipelineRecorder {
 
   /**
    * Bind-safe agent event handler — pass directly to RunnerConfig.on_agent_event.
-   * Accumulates tool call counts and token usage onto the currently-executing stage.
+   * Accumulates tool call counts, token usage, and cost onto the currently-executing stage.
    */
   readonly agentHandler = (event: SessionEvent): void => {
     if (!this.run || !this.currentStageId) return
@@ -56,13 +56,24 @@ export class PipelineRecorder {
 
     if (event.kind === 'TOOL_CALL_START') {
       stage.tool_calls += 1
+      const toolName = String(d['tool_name'] ?? 'unknown')
+      stage.tool_breakdown[toolName] = (stage.tool_breakdown[toolName] ?? 0) + 1
     } else if (event.kind === 'ASSISTANT_TEXT_END') {
       stage.llm_calls += 1
-      const usage = d['usage'] as { input_tokens?: number; output_tokens?: number; total_tokens?: number } | undefined
+      const usage = d['usage'] as {
+        input_tokens?: number
+        output_tokens?: number
+        total_tokens?: number
+        raw?: Record<string, unknown>
+      } | undefined
       if (usage) {
         stage.tokens_input += usage.input_tokens ?? 0
         stage.tokens_output += usage.output_tokens ?? 0
         stage.tokens_total += usage.total_tokens ?? 0
+        const cost = usage.raw?.['cost'] as number | undefined
+        if (typeof cost === 'number') {
+          stage.estimated_cost_usd += cost
+        }
       }
     }
   }
@@ -80,11 +91,17 @@ export class PipelineRecorder {
           started_at: event.timestamp.toISOString(),
           status: 'in_progress',
           stages: [],
+          model: String(d['model'] ?? 'unknown'),
+          provider: String(d['provider'] ?? 'unknown'),
+          trigger: String(d['trigger'] ?? 'unknown'),
           total_tool_calls: 0,
           total_llm_calls: 0,
+          total_retries: 0,
           tokens_input: 0,
           tokens_output: 0,
           tokens_total: 0,
+          estimated_cost_usd: 0,
+          tool_breakdown: {},
         }
         this.stageMap.clear()
         this.currentStageId = null
@@ -98,11 +115,15 @@ export class PipelineRecorder {
           started_at: event.timestamp.toISOString(),
           status: 'in_progress',
           retries: 0,
+          model: String(d['model'] ?? 'unknown'),
+          provider: String(d['provider'] ?? 'unknown'),
           tool_calls: 0,
+          tool_breakdown: {},
           llm_calls: 0,
           tokens_input: 0,
           tokens_output: 0,
           tokens_total: 0,
+          estimated_cost_usd: 0,
         }
         this.run.stages.push(stage)
         this.stageMap.set(stage.node_id, stage)
@@ -197,14 +218,22 @@ function computeDuration(startedAt: string, endTimestamp: Date): number {
 function rollUpTotals(run: PipelineRun): void {
   run.total_tool_calls = 0
   run.total_llm_calls = 0
+  run.total_retries = 0
   run.tokens_input = 0
   run.tokens_output = 0
   run.tokens_total = 0
+  run.estimated_cost_usd = 0
+  run.tool_breakdown = {}
   for (const stage of run.stages) {
     run.total_tool_calls += stage.tool_calls
     run.total_llm_calls += stage.llm_calls
+    run.total_retries += stage.retries
     run.tokens_input += stage.tokens_input
     run.tokens_output += stage.tokens_output
     run.tokens_total += stage.tokens_total
+    run.estimated_cost_usd += stage.estimated_cost_usd
+    for (const [tool, count] of Object.entries(stage.tool_breakdown)) {
+      run.tool_breakdown[tool] = (run.tool_breakdown[tool] ?? 0) + count
+    }
   }
 }

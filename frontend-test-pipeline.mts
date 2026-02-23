@@ -8,6 +8,10 @@
 
 import { Runner, PipelineRecorder } from './packages/attractor/src/index.js'
 import { EventKind } from './packages/agent/src/types/event.js'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const API_KEY = process.env['OPENROUTER_API_KEY']
 if (!API_KEY) {
@@ -22,14 +26,16 @@ function dotStr(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ')
 }
 
-const fixPrompt = dotStr(`In ${FRONTEND_DIR}, fix the broken Playwright e2e tests and do not stop until they are all passing. The test file is tests/e2e/app.spec.ts. Steps: (1) Read the test file and the relevant source files (app/routes/index.tsx etc) to understand why the tests are failing. (2) Run npx playwright test --reporter=list to see current failures. (3) Fix the tests. (4) Run again. (5) Repeat until all tests pass. When all tests pass, report the final results.`)
+const historyFile = join(__dirname, 'frontend-test-output/pipeline-history/runs.jsonl')
+
+const buildPrompt = dotStr(`In ${FRONTEND_DIR}, slow down the deck loading flow so the user can clearly see the loading animation working. Read app/routes/index.tsx and app/routes/deck.$deckId.tsx first to understand the current flow. The desired experience is: (1) user inputs a decklist and clicks the button, (2) the loading animation immediately shows on the current page before navigating away, (3) after a short artificial delay (~500ms) the app navigates to the deck page, (4) the deck page loading animation plays for at least 500ms before showing content even if data loads faster, (5) the Scryfall fetch stage also stays visible for at least 500ms. Add artificial delays using setTimeout or a minimum display time so every loading UI state is visible to the user. Do not use real network slowdowns - just add artificial minimum display times. Make sure all the neon loading components that were previously added are clearly visible during these transitions. Do not stop until the full flow works end to end.`)
 
 const dot = `digraph FrontendTestPipeline {
-  graph [goal="Fix broken Playwright e2e tests for the SolidJS TCG app on localhost:3000 and do not stop until they all pass"]
+  graph [goal="Add artificial delays to deck loading flow so loading animations are clearly visible"]
   start [shape=Mdiamond, label="Start"]
   exit [shape=Msquare, label="Done"]
-  fix [shape=box, label="Fix Tests Until Passing", prompt="${fixPrompt}"]
-  start -> fix -> exit
+  build [shape=box, label="Add Loading Delays", prompt="${buildPrompt}"]
+  start -> build -> exit
 }`
 
 const BOLD  = '\x1b[1m'
@@ -40,7 +46,7 @@ const RED   = '\x1b[31m'
 const YELLOW = '\x1b[33m'
 const RESET = '\x1b[0m'
 
-const recorder = new PipelineRecorder('./frontend-test-output/pipeline-history', {
+const recorder = new PipelineRecorder(join(__dirname, 'frontend-test-output/pipeline-history'), {
   passthrough: (e) => {
     switch (e.kind) {
       case 'pipeline_started':
@@ -71,6 +77,7 @@ const recorder = new PipelineRecorder('./frontend-test-output/pipeline-history',
 const runner = new Runner({
   api_key: API_KEY,
   model: 'moonshotai/kimi-k2.5',
+  trigger: 'claude_code',
   working_directory: FRONTEND_DIR,
 
   on_event: recorder.handler,
@@ -88,6 +95,6 @@ const runner = new Runner({
   },
 })
 
-const outcome = await runner.run(dot, { logs_root: './frontend-test-output/run-logs' })
+const outcome = await runner.run(dot, { logs_root: join(__dirname, 'frontend-test-output/run-logs') })
 console.log(`\nFinal outcome: ${outcome.status}`)
 if (outcome.notes) console.log(`Notes: ${outcome.notes}`)
