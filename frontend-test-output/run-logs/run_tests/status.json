@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: run_tests",
+  "context_updates": {
+    "last_stage": "run_tests",
+    "last_response": "Here are the full results:\n\n---\n\n## Results: 2 passed, 3 failed\n\n---\n\n### ✅ Passed (2)\n1. `shows the EDH Deck Builder heading`\n2. `shows Paste Decklist and Moxfield URL tab buttons`\n\n---\n\n### ❌ Failed"
+  }
+}

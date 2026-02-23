@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-02-23T18:50:46.636Z",
+  "current_node": "fix",
+  "completed_nodes": [
+    "start",
+    "fix"
+  ],
+  "node_retries": {},
+  "context": {
+    "graph.goal": "Fix broken Playwright e2e tests for the SolidJS TCG app on localhost:3000 and do not stop until they all pass",
+    "graph.label": "",
+    "current_node": "fix",
+    "outcome": "success",
+    "last_stage": "fix",
+    "last_response": "## ✅ All 5 Tests Passing\n\nThe subagent successfully diagnosed and fixed the broken Playwright e2e tests. Here's what was found and fixed:\n\n---\n\n### Root Cause\nSolidJS's `hydrate()` was crashing silent"
+  },
+  "logs": []
+}
