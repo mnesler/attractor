@@ -28,13 +28,14 @@ function dotStr(s: string): string {
 
 const historyFile = join(__dirname, 'frontend-test-output/pipeline-history/runs.jsonl')
 
-const buildPrompt = dotStr(`In ${FRONTEND_DIR}, slow down the deck loading flow so the user can clearly see the loading animation working. Read app/routes/index.tsx and app/routes/deck.$deckId.tsx first to understand the current flow. The desired experience is: (1) user inputs a decklist and clicks the button, (2) the loading animation immediately shows on the current page before navigating away, (3) after a short artificial delay (~500ms) the app navigates to the deck page, (4) the deck page loading animation plays for at least 500ms before showing content even if data loads faster, (5) the Scryfall fetch stage also stays visible for at least 500ms. Add artificial delays using setTimeout or a minimum display time so every loading UI state is visible to the user. Do not use real network slowdowns - just add artificial minimum display times. Make sure all the neon loading components that were previously added are clearly visible during these transitions. Do not stop until the full flow works end to end.`)
+const dockerEndpoint = 'http:' + String.raw`//localhost:12434/engines/llama.cpp/v1/chat/completions`
+const buildPrompt = dotStr(`In ${FRONTEND_DIR}, wire the Deck Assistant chat to use a local Docker model runner instead of the Anthropic API. Read src/lib/server/chat.ts first to understand the current implementation. The Docker model runner exposes an OpenAI-compatible Chat Completions API. The full endpoint URL is: ${dockerEndpoint} - use this exact URL string in the code. The model name to use is hf.co/minimaxir/magic-the-gathering. Replace the Anthropic fetch call with a fetch to the Docker model runner using the OpenAI Chat Completions request format (messages array with role/content, model field, max_tokens). Keep the same system prompt about being an EDH deck building assistant. Remove the ANTHROPIC_API_KEY check - instead if the fetch fails with a connection error, return a helpful error message: Local MTG model is not running. Start it with: docker model run hf.co/minimaxir/magic-the-gathering. Update any other error messages to reference the local model rather than Anthropic. Do not change the Chat.tsx component or any UI code - only change src/lib/server/chat.ts.`)
 
 const dot = `digraph FrontendTestPipeline {
-  graph [goal="Add artificial delays to deck loading flow so loading animations are clearly visible"]
+  graph [goal="Wire Deck Assistant chat to local Docker model runner hf.co/minimaxir/magic-the-gathering"]
   start [shape=Mdiamond, label="Start"]
   exit [shape=Msquare, label="Done"]
-  build [shape=box, label="Add Loading Delays", prompt="${buildPrompt}"]
+  build [shape=box, label="Hook Up Local MTG Model", prompt="${buildPrompt}"]
   start -> build -> exit
 }`
 

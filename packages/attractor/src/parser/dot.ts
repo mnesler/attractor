@@ -35,10 +35,6 @@ interface Token {
 }
 
 function tokenize(src: string): Token[] {
-  // Strip comments
-  src = src.replace(/\/\/[^\n]*/g, '')
-  src = src.replace(/\/\*[\s\S]*?\*\//g, '')
-
   const tokens: Token[] = []
   let i = 0
   let line = 1
@@ -50,6 +46,23 @@ function tokenize(src: string): Token[] {
     if (/\s/.test(c)) {
       if (c === '\n') line++
       i++
+      continue
+    }
+
+    // Line comment: // ... (only outside quoted strings)
+    if (c === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') i++
+      continue
+    }
+
+    // Block comment: /* ... */
+    if (c === '/' && src[i + 1] === '*') {
+      i += 2
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) {
+        if (src[i] === '\n') line++
+        i++
+      }
+      i += 2 // skip */
       continue
     }
 
