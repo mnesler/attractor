@@ -85,29 +85,27 @@ client = Client.from_env()
 
 Environment variable conventions:
 
-| Provider  | Required Variable      | Optional Variables                                  |
-|-----------|------------------------|-----------------------------------------------------|
-| OpenAI    | OPENAI_API_KEY         | OPENAI_BASE_URL, OPENAI_ORG_ID, OPENAI_PROJECT_ID  |
-| Anthropic | ANTHROPIC_API_KEY      | ANTHROPIC_BASE_URL                                  |
-| Gemini    | GEMINI_API_KEY         | GEMINI_BASE_URL                                     |
+| Provider   | Required Variable       | Optional Variables                                  |
+|------------|-------------------------|-----------------------------------------------------|
+| Anthropic  | ANTHROPIC_API_KEY       | ANTHROPIC_BASE_URL                                  |
+| OpenRouter | OPENROUTER_API_KEY      | OPENROUTER_BASE_URL                                 |
 
-Alternate key names may be accepted (e.g., `GOOGLE_API_KEY` as a fallback for `GEMINI_API_KEY`). Only providers whose keys are present in the environment are registered. The first registered provider becomes the default.
+Only providers whose keys are present in the environment are registered. The first registered provider becomes the default.
 
 #### Programmatic Setup
 
 For full control, adapters are constructed explicitly and registered with the Client:
 
 ```
-adapter = OpenAIAdapter(
-    api_key = "sk-...",
-    base_url = "https://custom-endpoint.example.com/v1",
-    default_headers = { "X-Custom": "value" },
+adapter = OpenRouterAdapter(
+    api_key = "sk-or-...",
+    default_headers = { "HTTP-Referer": "https://myapp.example.com", "X-Title": "My App" },
     timeout = 30.0
 )
 
 client = Client(
-    providers = { "openai": adapter },
-    default_provider = "openai"
+    providers = { "openrouter": adapter },
+    default_provider = "openrouter"
 )
 ```
 
@@ -211,13 +209,12 @@ Multiple concurrent requests to different providers (or the same provider) are s
 
 Each provider adapter MUST use the provider's native, preferred API -- not a compatibility layer. This is a fundamental design requirement. Using a lowest-common-denominator compatibility layer (such as only targeting the OpenAI Chat Completions API shape) loses access to provider-specific capabilities like reasoning tokens, extended thinking, prompt caching, and advanced tool features.
 
-| Provider  | Required API                    | Why Not Compatibility Layer                                                |
-|-----------|---------------------------------|---------------------------------------------------------------------------|
-| OpenAI    | **Responses API** (`/v1/responses`) | The Responses API properly surfaces reasoning tokens, supports built-in tools (web search, file search, code interpreter), and is OpenAI's forward-looking API. The Chat Completions API does not return reasoning tokens for reasoning models (GPT-5.2 series, etc.) and lacks server-side conversation state. |
-| Anthropic | **Messages API** (`/v1/messages`)   | The Messages API supports extended thinking with thinking blocks and signatures, prompt caching with `cache_control`, beta feature headers, and the strict user/assistant alternation model. There is no alternative. |
-| Gemini    | **Gemini API** (`/v1beta/models/*/generateContent`) | The native Gemini API supports grounding with Google Search, code execution, system instructions, and cached content. OpenAI-compatible endpoints for Gemini are limited shims. |
+| Provider   | Required API                                      | Notes                                                                                                                                                                    |
+|------------|---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Anthropic  | **Messages API** (`/v1/messages`)                 | Supports extended thinking with thinking blocks and signatures, prompt caching with `cache_control`, beta feature headers, and the strict user/assistant alternation model. |
+| OpenRouter | **Chat Completions API** (`/v1/chat/completions`) | OpenRouter exposes an OpenAI-compatible Chat Completions API that routes to many underlying models. Use the `OpenAICompatibleAdapter` (Section 7.10) targeting `https://openrouter.ai/api/v1`. |
 
-The unified SDK abstracts over these different APIs so that callers write provider-agnostic code, but internally each adapter speaks the provider's native protocol. This is the entire value proposition: the complexity of three different APIs is handled once in the adapters so that downstream consumers (like a coding agent) never have to think about it.
+The unified SDK abstracts over these APIs so that callers write provider-agnostic code, but internally each adapter speaks the provider's native protocol. This is the entire value proposition: provider-specific complexity is handled once in the adapters so that downstream consumers (like a coding agent) never have to think about it.
 
 ### 2.8 Provider Beta Headers and Feature Flags
 
@@ -245,9 +242,7 @@ request = Request(
 
 The Anthropic adapter joins these into a comma-separated `anthropic-beta` header value.
 
-**OpenAI feature flags.** The Responses API supports enabling built-in tools and features via the request body (e.g., `tools: [{"type": "web_search_preview"}]`). These should be supported through `provider_options` or by extending the tool definitions.
-
-**Gemini configuration.** Gemini supports safety settings, grounding configuration, and cached content references as part of the request body. These should be passable through `provider_options`.
+**OpenRouter configuration.** OpenRouter supports model routing preferences (`route`), prompt transforms (`transforms`), and usage attribution headers (`HTTP-Referer`, `X-Title`). These should be passable through `provider_options.openrouter`.
 
 The key principle: the unified interface handles the common 90% of cases. The `provider_options` escape hatch handles the remaining 10% without requiring library changes for every new provider feature.
 
@@ -272,11 +267,10 @@ RECORD ModelInfo:
 
 **At the time of writing (February 2026),** the top models available through each provider's API are:
 
-| Provider  | Top Model(s)                                        |
-|-----------|-----------------------------------------------------|
-| Anthropic | **Claude Opus 4.6**, Claude Sonnet 4.5               |
-| OpenAI    | **GPT-5.2 series** (GPT-5.2, GPT-5.2-codex)        |
-| Gemini    | **Gemini 3 Pro (Preview)**, Gemini 3 Flash (Preview) |
+| Provider   | Top Model(s)                                                         |
+|------------|----------------------------------------------------------------------|
+| Anthropic  | **Claude Opus 4.6**, Claude Sonnet 4.5                               |
+| OpenRouter | Any model via `provider/model` routing (e.g., `anthropic/claude-opus-4-6`) |
 
 Implementations should default to the latest available models when no model is specified by the caller, and should prefer newer models in any model selection logic. However, the catalog must also include older models that are still served by the APIs, as callers may need them for cost, latency, or compatibility reasons.
 
@@ -288,23 +282,17 @@ MODELS = [
     -- Anthropic -- prefer Claude Opus 4.6 for top quality
     -- ==========================================================
 
-    ModelInfo(id="claude-opus-4-6",               provider="anthropic", display_name="Claude Opus 4.6",   context_window=200000, supports_tools=true, supports_vision=true, supports_reasoning=true),
-    ModelInfo(id="claude-sonnet-4-5",             provider="anthropic", display_name="Claude Sonnet 4.5", context_window=200000, supports_tools=true, supports_vision=true, supports_reasoning=true),
+    ModelInfo(id="claude-opus-4-6",               provider="anthropic",   display_name="Claude Opus 4.6",   context_window=200000, supports_tools=true, supports_vision=true, supports_reasoning=true),
+    ModelInfo(id="claude-sonnet-4-5",             provider="anthropic",   display_name="Claude Sonnet 4.5", context_window=200000, supports_tools=true, supports_vision=true, supports_reasoning=true),
 
     -- ==========================================================
-    -- OpenAI -- prefer GPT-5.2 series for top quality
+    -- OpenRouter -- routes to many underlying providers
+    -- Model IDs use "provider/model" format
     -- ==========================================================
 
-    ModelInfo(id="gpt-5.2",                       provider="openai",    display_name="GPT-5.2",           context_window=1047576, supports_tools=true, supports_vision=true, supports_reasoning=true),
-    ModelInfo(id="gpt-5.2-mini",                  provider="openai",    display_name="GPT-5.2 Mini",      context_window=1047576, supports_tools=true, supports_vision=true, supports_reasoning=true),
-    ModelInfo(id="gpt-5.2-codex",                 provider="openai",    display_name="GPT-5.2 Codex",     context_window=1047576, supports_tools=true, supports_vision=true, supports_reasoning=true),
-
-    -- ==========================================================
-    -- Gemini -- prefer Gemini 3 Flash Preview for latest
-    -- ==========================================================
-
-    ModelInfo(id="gemini-3-pro-preview",          provider="gemini",    display_name="Gemini 3 Pro (Preview)",   context_window=1048576, supports_tools=true, supports_vision=true, supports_reasoning=true),
-    ModelInfo(id="gemini-3-flash-preview",        provider="gemini",    display_name="Gemini 3 Flash (Preview)", context_window=1048576, supports_tools=true, supports_vision=true, supports_reasoning=true),
+    ModelInfo(id="anthropic/claude-opus-4-6",     provider="openrouter",  display_name="Claude Opus 4.6 (via OpenRouter)",   context_window=200000, supports_tools=true, supports_vision=true, supports_reasoning=true),
+    ModelInfo(id="openai/gpt-4.5",                provider="openrouter",  display_name="GPT-4.5 (via OpenRouter)",           context_window=128000, supports_tools=true, supports_vision=true, supports_reasoning=false),
+    ModelInfo(id="meta-llama/llama-3.1-70b-instruct", provider="openrouter", display_name="Llama 3.1 70B (via OpenRouter)", context_window=131072, supports_tools=true, supports_vision=false, supports_reasoning=false),
 ]
 ```
 
@@ -331,15 +319,14 @@ The catalog should be shipped as a data file (JSON or similar) that can be updat
 
 Prompt caching allows providers to reuse computation from previous requests when the prefix of the conversation is unchanged. For agentic workloads where the system prompt and conversation history are identical across many turns, caching can reduce input token costs by 50-90%. The unified SDK MUST support caching for each provider.
 
-| Provider  | Caching Behavior                                                      | SDK Action Required |
-|-----------|-----------------------------------------------------------------------|---------------------|
-| OpenAI    | Automatic -- the Responses API caches shared prefixes server-side     | None. Use the Responses API and report `cache_read_tokens` from usage. |
-| Gemini    | Automatic -- prefix caching for repeated content, plus explicit `cachedContent` API for long contexts | None for automatic. Expose explicit caching via `provider_options`. |
-| Anthropic | **Not automatic.** Requires explicit `cache_control` annotations on content blocks. | The Anthropic adapter must inject `cache_control` breakpoints automatically for agentic workloads. |
+| Provider   | Caching Behavior                                                           | SDK Action Required |
+|------------|----------------------------------------------------------------------------|---------------------|
+| Anthropic  | **Not automatic.** Requires explicit `cache_control` annotations on content blocks. | The Anthropic adapter must inject `cache_control` breakpoints automatically for agentic workloads. |
+| OpenRouter | Depends on the underlying model being routed to. No SDK-side action needed. | None. Report `cache_read_tokens` from usage if present in the response. |
 
-Anthropic is the only provider where the SDK must do extra work. Without cache_control annotations, every turn re-processes the entire system prompt and conversation history at full price. With proper caching, cached input tokens cost 90% less. This is the single highest-ROI optimization for agentic workloads.
+Anthropic is the provider where the SDK must do extra work. Without cache_control annotations, every turn re-processes the entire system prompt and conversation history at full price. With proper caching, cached input tokens cost 90% less. This is the single highest-ROI optimization for agentic workloads.
 
-All three providers report cache statistics. The SDK must map these to `Usage.cache_read_tokens` and `Usage.cache_write_tokens` so callers can verify caching is working.
+Both providers report cache statistics where available. The SDK must map these to `Usage.cache_read_tokens` and `Usage.cache_write_tokens` so callers can verify caching is working.
 
 ---
 
@@ -405,13 +392,13 @@ ENUM Role:
 
 Provider mapping for roles:
 
-| SDK Role    | OpenAI               | Anthropic                          | Gemini                    |
-|-------------|----------------------|------------------------------------|---------------------------|
-| SYSTEM      | `system` role        | Extracted to `system` parameter    | `systemInstruction`       |
-| USER        | `user` role          | `user` role                        | `user` role               |
-| ASSISTANT   | `assistant` role     | `assistant` role                   | `model` role              |
-| TOOL        | `tool` role          | `tool_result` block in user msg    | `functionResponse` in user|
-| DEVELOPER   | `developer` role     | Merged with system                 | Merged with system        |
+| SDK Role    | Anthropic                          | OpenRouter (Chat Completions)     |
+|-------------|------------------------------------|------------------------------------|
+| SYSTEM      | Extracted to `system` parameter    | `system` role                      |
+| USER        | `user` role                        | `user` role                        |
+| ASSISTANT   | `assistant` role                   | `assistant` role                   |
+| TOOL        | `tool_result` block in user msg    | `tool` role                        |
+| DEVELOPER   | Merged with system                 | `developer` role (or merged)       |
 
 ### 3.3 ContentPart (Tagged Union)
 
@@ -476,14 +463,14 @@ Exactly one of `url` or `data` must be provided. The adapter base64-encodes `dat
 
 **Image upload is critical for multimodal capabilities.** Many models (Claude, GPT-4.1, Gemini) accept image inputs for analysis, code screenshot reading, diagram understanding, and more. The SDK must handle image upload correctly across all providers:
 
-| Concern              | OpenAI                                               | Anthropic                                         | Gemini                                            |
-|----------------------|------------------------------------------------------|---------------------------------------------------|---------------------------------------------------|
-| URL images           | `image_url.url` field                                | `source.type = "url"` with `url` field            | `fileData.fileUri` field                          |
-| Base64 images        | `image_url.url` as data URI (`data:mime;base64,...`) | `source.type = "base64"` with `data` + `media_type` | `inlineData` with `data` + `mimeType`           |
-| File path (local)    | Read file, base64-encode, send as data URI           | Read file, base64-encode, send as base64 source   | Read file, base64-encode, send as inlineData     |
-| Supported formats    | PNG, JPEG, GIF, WEBP                                | PNG, JPEG, GIF, WEBP                              | PNG, JPEG, GIF, WEBP, HEIC, HEIF                |
-| Max image size       | 20MB                                                 | ~5MB per image (base64 encoded)                   | Varies by method                                  |
-| Detail/fidelity hint | `detail`: "auto", "low", "high"                     | Not supported (ignore)                            | Not supported (ignore)                            |
+| Concern              | Anthropic                                         | OpenRouter (Chat Completions)                        |
+|----------------------|---------------------------------------------------|------------------------------------------------------|
+| URL images           | `source.type = "url"` with `url` field            | `image_url.url` field                                |
+| Base64 images        | `source.type = "base64"` with `data` + `media_type` | `image_url.url` as data URI (`data:mime;base64,...`) |
+| File path (local)    | Read file, base64-encode, send as base64 source   | Read file, base64-encode, send as data URI           |
+| Supported formats    | PNG, JPEG, GIF, WEBP                              | PNG, JPEG, GIF, WEBP (model-dependent)               |
+| Max image size       | ~5MB per image (base64 encoded)                   | Varies by underlying model                           |
+| Detail/fidelity hint | Not supported (ignore)                            | `detail`: "auto", "low", "high" (if supported)       |
 
 **Convenience: file path support.** The SDK should accept a local file path as a convenience. When `url` looks like a local file path (starts with `/`, `./`, or `~`), the adapter reads the file, infers the MIME type from the extension, base64-encodes the contents, and sends it using the provider's inline data format. This makes it easy for coding agents to send screenshots and diagrams without manual encoding.
 
@@ -630,23 +617,16 @@ Unified reason values:
 
 Provider finish reason mapping:
 
-| Provider  | Provider Value    | Unified Value    |
-|-----------|-------------------|------------------|
-| OpenAI    | stop              | stop             |
-| OpenAI    | length            | length           |
-| OpenAI    | tool_calls        | tool_calls       |
-| OpenAI    | content_filter    | content_filter   |
-| Anthropic | end_turn          | stop             |
-| Anthropic | stop_sequence     | stop             |
-| Anthropic | max_tokens        | length           |
-| Anthropic | tool_use          | tool_calls       |
-| Gemini    | STOP              | stop             |
-| Gemini    | MAX_TOKENS        | length           |
-| Gemini    | SAFETY            | content_filter   |
-| Gemini    | RECITATION        | content_filter   |
-| Gemini    | (has tool calls)  | tool_calls       |
-
-Note: Gemini does not have a dedicated "tool_calls" finish reason. The adapter infers it from the presence of `functionCall` parts in the response.
+| Provider               | Provider Value | Unified Value  |
+|------------------------|----------------|----------------|
+| Anthropic              | end_turn       | stop           |
+| Anthropic              | stop_sequence  | stop           |
+| Anthropic              | max_tokens     | length         |
+| Anthropic              | tool_use       | tool_calls     |
+| OpenRouter (Chat Compl)| stop           | stop           |
+| OpenRouter (Chat Compl)| length         | length         |
+| OpenRouter (Chat Compl)| tool_calls     | tool_calls     |
+| OpenRouter (Chat Compl)| content_filter | content_filter |
 
 ### 3.9 Usage
 
@@ -672,22 +652,17 @@ usage_a + usage_b -> Usage
 
 Provider usage field mapping:
 
-| SDK Field           | OpenAI Field                                         | Anthropic Field                  | Gemini Field                          |
-|---------------------|------------------------------------------------------|----------------------------------|---------------------------------------|
-| input_tokens        | usage.prompt_tokens                                  | usage.input_tokens               | usageMetadata.promptTokenCount        |
-| output_tokens       | usage.completion_tokens                              | usage.output_tokens              | usageMetadata.candidatesTokenCount    |
-| reasoning_tokens    | usage.completion_tokens_details.reasoning_tokens     | (see note below)                 | usageMetadata.thoughtsTokenCount      |
-| cache_read_tokens   | usage.prompt_tokens_details.cached_tokens            | usage.cache_read_input_tokens    | usageMetadata.cachedContentTokenCount |
-| cache_write_tokens  | (not provided)                                       | usage.cache_creation_input_tokens| (not provided)                        |
+| SDK Field           | Anthropic Field                   | OpenRouter Field (Chat Completions)                  |
+|---------------------|-----------------------------------|------------------------------------------------------|
+| input_tokens        | usage.input_tokens                | usage.prompt_tokens                                  |
+| output_tokens       | usage.output_tokens               | usage.completion_tokens                              |
+| reasoning_tokens    | (sum of thinking block lengths)   | usage.completion_tokens_details.reasoning_tokens (if present) |
+| cache_read_tokens   | usage.cache_read_input_tokens     | usage.prompt_tokens_details.cached_tokens (if present) |
+| cache_write_tokens  | usage.cache_creation_input_tokens | (not provided)                                       |
 
 #### Reasoning Token Handling (Critical)
 
 Reasoning tokens are tokens the model uses for internal chain-of-thought before producing visible output. Properly tracking and surfacing reasoning tokens is essential for cost management and debugging, because reasoning tokens are billed as output tokens but are not visible in the response text.
-
-**OpenAI reasoning models (GPT-5.2 series, etc.):**
-- The **Responses API** (`/v1/responses`) is REQUIRED for reasoning models. The Chat Completions API does not return reasoning token breakdowns for these models. The Responses API returns `usage.output_tokens_details.reasoning_tokens` which tells you exactly how many tokens were spent on reasoning vs. visible output.
-- The `reasoning_effort` request parameter ("low", "medium", "high") controls how much reasoning the model does. This maps to `reasoning.effort` in the Responses API request body.
-- Reasoning content is not visible in the response (OpenAI does not expose the thinking text for GPT-5.2 series models). The adapter should still populate `reasoning_tokens` in Usage so callers can track costs.
 
 **Anthropic extended thinking (Claude with thinking enabled):**
 - Extended thinking is enabled via the `thinking` parameter (through `provider_options`) and requires specific beta headers.
@@ -695,12 +670,12 @@ Reasoning tokens are tokens the model uses for internal chain-of-thought before 
 - The adapter should populate `reasoning_tokens` by summing the token lengths of thinking blocks (Anthropic does not provide a separate reasoning token count, but the thinking block text can be used for estimation).
 - Thinking blocks carry a `signature` field that must be round-tripped verbatim in subsequent messages.
 
-**Gemini thinking (Gemini 3 models):**
-- Gemini 3 Flash supports "thinking" via the `thinkingConfig` parameter.
+**OpenRouter reasoning (model-dependent):**
+- OpenRouter routes to underlying models. If the underlying model supports reasoning (e.g., via OpenAI Responses API or Anthropic extended thinking), reasoning token counts may be surfaced in `usage.completion_tokens_details.reasoning_tokens`.
 - Gemini reports `thoughtsTokenCount` in `usageMetadata`, which maps directly to `reasoning_tokens`.
 - Thinking content may be returned in the response as a `thought` part.
 
-**Why this matters:** When switching between providers, reasoning token usage can vary dramatically. A query that uses 500 reasoning tokens on OpenAI GPT-5.2 might use 2000 thinking tokens on Claude. The unified SDK must track this accurately so callers can make informed cost decisions. Even though reasoning tokens make direct provider switching unfavorable (the thinking styles are different), the SDK should still translate correctly so higher-level tools can compare.
+**Why this matters:** When switching between models, reasoning token usage can vary dramatically. The unified SDK must track this accurately so callers can make informed cost decisions.
 
 ### 3.10 ResponseFormat
 
@@ -980,11 +955,10 @@ result.text     -- raw text response
 
 **Implementation strategy by provider:**
 
-| Provider  | Strategy                                                                    |
-|-----------|-----------------------------------------------------------------------------|
-| OpenAI    | Native `response_format: { type: "json_schema", ... }` with strict mode    |
-| Gemini    | Native `responseMimeType: "application/json"` with `responseSchema`        |
-| Anthropic | Fallback: inject schema instructions into the system prompt, parse output. Alternatively, use tool-based extraction (define a tool whose input schema matches the desired output, force the model to call it). |
+| Provider   | Strategy                                                                                                                                             |
+|------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Anthropic  | Inject schema instructions into the system prompt, parse output. Alternatively, use tool-based extraction (define a tool whose input schema matches the desired output, force the model to call it). |
+| OpenRouter | Pass `response_format: { type: "json_schema", ... }` if the underlying model supports it; otherwise fall back to prompt engineering + output parsing. |
 
 If parsing or validation fails, the function raises `NoObjectGeneratedError`.
 
@@ -1134,12 +1108,12 @@ RECORD ToolChoice:
 
 Provider mapping:
 
-| SDK Mode  | OpenAI                                                  | Anthropic                          | Gemini                                                     |
-|-----------|---------------------------------------------------------|------------------------------------|------------------------------------------------------------|
-| auto      | `"auto"`                                                | `{"type": "auto"}`                 | `"AUTO"`                                                   |
-| none      | `"none"`                                                | Omit tools from request            | `"NONE"`                                                   |
-| required  | `"required"`                                            | `{"type": "any"}`                  | `"ANY"`                                                    |
-| named     | `{"type":"function","function":{"name":"..."}}`        | `{"type":"tool","name":"..."}`     | `{"mode":"ANY","allowedFunctionNames":["..."]}`            |
+| SDK Mode  | Anthropic                          | OpenRouter (Chat Completions)                     |
+|-----------|------------------------------------|---------------------------------------------------|
+| auto      | `{"type": "auto"}`                 | `"auto"`                                          |
+| none      | Omit tools from request            | `"none"`                                          |
+| required  | `{"type": "any"}`                  | `"required"`                                      |
+| named     | `{"type":"tool","name":"..."}`     | `{"type":"function","function":{"name":"..."}}`   |
 
 Note on Anthropic `none` mode: Anthropic does not support `tool_choice: {"type": "none"}` when tools are present. The adapter must omit the tools array from the request body entirely.
 
@@ -1265,9 +1239,9 @@ When streaming with active tools, the stream emits tool call events as they form
 
 How tool results are translated to each provider's format:
 
-| SDK Format                           | OpenAI                                | Anthropic                             | Gemini                              |
-|--------------------------------------|---------------------------------------|---------------------------------------|-------------------------------------|
-| TOOL role message with ToolResultData | Separate `tool` messages with `tool_call_id` | `tool_result` content blocks in `user` message | `functionResponse` parts in `user` content |
+| SDK Format                            | Anthropic                                      | OpenRouter (Chat Completions)               |
+|---------------------------------------|------------------------------------------------|---------------------------------------------|
+| TOOL role message with ToolResultData | `tool_result` content blocks in `user` message | Separate `tool` messages with `tool_call_id` |
 
 ---
 
@@ -1368,18 +1342,6 @@ Adapters map HTTP status codes to error types using this table:
 | 503    | ServerError         | true      |
 | 504    | ServerError         | true      |
 
-For Gemini (which may use gRPC status codes):
-
-| gRPC Code           | Error Type           |
-|---------------------|---------------------|
-| NOT_FOUND           | NotFoundError       |
-| INVALID_ARGUMENT    | InvalidRequestError |
-| UNAUTHENTICATED     | AuthenticationError |
-| PERMISSION_DENIED   | AccessDeniedError   |
-| RESOURCE_EXHAUSTED  | RateLimitError      |
-| UNAVAILABLE         | ServerError         |
-| DEADLINE_EXCEEDED   | RequestTimeoutError |
-| INTERNAL            | ServerError         |
 
 ### 6.5 Error Message Classification
 
@@ -1494,7 +1456,7 @@ Recommended optional methods:
 
 The adapter must translate a unified `Request` into the provider's native API format. The general steps are:
 
-1. **Extract system messages.** For Anthropic: extract from message list, pass as `system` parameter. For Gemini: extract and pass as `systemInstruction`. For OpenAI (Responses API): extract and pass as `instructions` parameter.
+1. **Extract system messages.** For Anthropic: extract from message list, pass as `system` parameter. For OpenRouter (Chat Completions): pass as a `system`-role message in the messages array.
 
 2. **Translate messages.** Convert each Message and its ContentParts to the provider's format.
 
@@ -1508,33 +1470,7 @@ The adapter must translate a unified `Request` into the provider's native API fo
 
 7. **Apply provider options.** Merge any provider-specific options from `request.provider_options[provider_name]` into the request body.
 
-### 7.3Message Translation Details
-
-#### OpenAI Message Translation (Responses API)
-
-The Responses API uses a different message format than Chat Completions. Messages are passed in an `input` array rather than a `messages` array:
-
-```
-Unified Role    -> Responses API Handling
-SYSTEM          -> Extracted to `instructions` parameter
-USER            -> input item: { "type": "message", "role": "user", "content": [...] }
-ASSISTANT       -> input item: { "type": "message", "role": "assistant", "content": [...] }
-TOOL            -> input item: { "type": "function_call_output", "call_id": "...", "output": "..." }
-DEVELOPER       -> Extracted to `instructions` parameter (or `developer` role input item)
-
-ContentPart Translations:
-  TEXT          -> { "type": "input_text", "text": "..." } (user) or { "type": "output_text", "text": "..." } (assistant)
-  IMAGE (url)  -> { "type": "input_image", "image_url": "..." }
-  IMAGE (data) -> { "type": "input_image", "image_url": "data:<mime>;base64,<data>" }
-  TOOL_CALL    -> input item: { "type": "function_call", "id": "...", "name": "...", "arguments": "..." }
-  TOOL_RESULT  -> input item: { "type": "function_call_output", "call_id": "...", "output": "..." }
-```
-
-Special behaviors:
-- System messages are extracted to the `instructions` parameter, not included in the `input` array.
-- The `reasoning.effort` parameter controls reasoning for o-series models ("low", "medium", "high").
-- Tool calls and results are top-level input items, not nested within messages.
-- For third-party OpenAI-compatible endpoints, use the Chat Completions format instead (see Section 7.10).
+### 7.3 Message Translation Details
 
 #### Anthropic Message Translation
 
@@ -1562,38 +1498,37 @@ Special behaviors:
 - **Thinking block round-tripping:** Thinking and redacted_thinking blocks from previous responses must be preserved exactly as received and included in subsequent assistant messages.
 - **max_tokens is required:** Anthropic always requires `max_tokens`. Default to 4096 if not specified.
 
-#### Gemini Message Translation
+#### OpenRouter Message Translation (Chat Completions)
 
 ```
-Unified Role    -> Gemini Handling
-SYSTEM          -> Extracted to `systemInstruction` field
-DEVELOPER       -> Merged with systemInstruction
-USER            -> "user" role
-ASSISTANT       -> "model" role
-TOOL            -> "user" role with functionResponse parts
+Unified Role    -> Chat Completions Handling
+SYSTEM          -> { "role": "system", "content": "..." }
+DEVELOPER       -> { "role": "developer", "content": "..." } (or merged with system)
+USER            -> { "role": "user", "content": [...] }
+ASSISTANT       -> { "role": "assistant", "content": [...] }
+TOOL            -> { "role": "tool", "tool_call_id": "...", "content": "..." }
 
 ContentPart Translations:
-  TEXT          -> { "text": "..." }
-  IMAGE (url)  -> { "fileData": { "mimeType": "...", "fileUri": "..." } }
-  IMAGE (data) -> { "inlineData": { "mimeType": "...", "data": "<base64>" } }
-  TOOL_CALL    -> { "functionCall": { "name": "...", "args": { ... } } }
-  TOOL_RESULT  -> { "functionResponse": { "name": "<function_name>", "response": { ... } } }
+  TEXT          -> { "type": "text", "text": "..." }
+  IMAGE (url)  -> { "type": "image_url", "image_url": { "url": "..." } }
+  IMAGE (data) -> { "type": "image_url", "image_url": { "url": "data:<mime>;base64,<data>" } }
+  TOOL_CALL    -> assistant content: { "type": "text" } + tool_calls array on the message
+  TOOL_RESULT  -> tool role message with tool_call_id
 ```
 
 Special behaviors:
-- **No developer role:** Treated the same as system.
-- **Tool call IDs:** Gemini does not assign unique IDs to function calls. The adapter must generate synthetic unique IDs (e.g., `"call_" + random_uuid()`) and maintain a mapping from synthetic IDs to function names for when tool results are sent back.
-- **Function response format:** Gemini's `functionResponse` uses the function *name* (not the call ID) and expects a dict for the response (wrap strings in `{"result": "..."}` if needed).
-- **Streaming format:** Gemini uses JSON chunks (optionally via SSE with `?alt=sse`), not a standard SSE endpoint.
+- **Standard Chat Completions format:** OpenRouter implements the standard OpenAI Chat Completions protocol. Use the `OpenAICompatibleAdapter` (Section 7.10) with base URL `https://openrouter.ai/api/v1`.
+- **Model routing:** Model IDs use `provider/model` format (e.g., `anthropic/claude-opus-4-6`). Pass through as-is.
+- **Attribution headers:** Include `HTTP-Referer` and `X-Title` request headers for OpenRouter usage attribution.
 
-### 7.4Tool Definition Translation
+### 7.4 Tool Definition Translation
 
-| SDK Format              | OpenAI                                             | Anthropic                                        | Gemini                                             |
-|-------------------------|----------------------------------------------------|-------------------------------------------------|-----------------------------------------------------|
-| Tool.name               | tools[].function.name                              | tools[].name                                     | tools[].functionDeclarations[].name                |
-| Tool.description        | tools[].function.description                       | tools[].description                              | tools[].functionDeclarations[].description         |
-| Tool.parameters         | tools[].function.parameters                        | tools[].input_schema                             | tools[].functionDeclarations[].parameters          |
-| Wrapper structure       | `{"type":"function","function":{...}}`             | `{"name":...,"description":...,"input_schema":...}` | `{"functionDeclarations":[{...}]}`             |
+| SDK Format        | Anthropic                                           | OpenRouter (Chat Completions)                   |
+|-------------------|-----------------------------------------------------|-------------------------------------------------|
+| Tool.name         | tools[].name                                        | tools[].function.name                           |
+| Tool.description  | tools[].description                                 | tools[].function.description                    |
+| Tool.parameters   | tools[].input_schema                                | tools[].function.parameters                     |
+| Wrapper structure | `{"name":...,"description":...,"input_schema":...}` | `{"type":"function","function":{...}}`          |
 
 ### 7.5 Response Translation
 
@@ -1605,7 +1540,7 @@ The adapter must parse the provider's response into the unified Response format:
 4. **Preserve raw response.** Store the complete provider response in `Response.raw` for debugging.
 5. **Extract rate limit info.** Parse `x-ratelimit-*` headers into `RateLimitInfo` if present.
 
-### 7.6Error Translation
+### 7.6 Error Translation
 
 The adapter must translate HTTP errors into the error hierarchy:
 
@@ -1651,37 +1586,22 @@ Most providers use Server-Sent Events (SSE). A proper SSE parser must handle:
 
 The parser yields `(event_type, data)` tuples. Many providers include the event type in the JSON payload as well as in the SSE event field; prefer the JSON payload field for reliability.
 
-#### OpenAI Streaming (Responses API)
+#### OpenRouter Streaming (Chat Completions)
 
-The Responses API uses a different streaming format than Chat Completions:
-
-```
-Provider Format (Responses API):
-    event: response.created        -- response object created
-    event: response.in_progress    -- generation started
-    event: response.output_text.delta  -- incremental text
-    event: response.function_call_arguments.delta  -- incremental tool call args
-    event: response.output_item.done   -- output item complete
-    event: response.completed      -- generation complete, includes usage with reasoning_tokens
-
-Translation:
-    output_text.delta              -> TEXT_DELTA event (emit TEXT_START on first)
-    function_call_arguments.delta  -> TOOL_CALL_DELTA event
-    output_item.done (text)        -> TEXT_END event
-    output_item.done (function)    -> TOOL_CALL_END event
-    response.completed             -> FINISH event with usage (including reasoning_tokens)
-```
-
-The Responses API streaming format provides reasoning token counts in the final `response.completed` event, which is why it is required for reasoning models.
-
-For the OpenAI-compatible adapter (Chat Completions), the streaming format is:
+OpenRouter uses the standard OpenAI Chat Completions SSE streaming format:
 
 ```
-Provider Format (Chat Completions, for third-party endpoints):
+Provider Format (Chat Completions SSE):
     data: {"choices": [{"delta": {"content": "text"}, "finish_reason": null}]}
     data: {"choices": [{"delta": {"tool_calls": [{"index": 0, ...}]}}]}
     data: {"usage": {...}}
     data: [DONE]
+
+Translation:
+    delta.content present          -> TEXT_DELTA event (emit TEXT_START on first)
+    delta.tool_calls present       -> TOOL_CALL_DELTA event
+    finish_reason present          -> TEXT_END + FINISH event
+    [DONE]                         -> stream complete
 ```
 
 #### Anthropic Streaming
@@ -1708,48 +1628,32 @@ Translation:
     message_stop                        -> FINISH with accumulated response
 ```
 
-#### Gemini Streaming
-
-Gemini uses SSE (with `?alt=sse` query parameter) or newline-delimited JSON chunks.
-
-```
-Provider Format (SSE):
-    data: {"candidates": [{"content": {"parts": [{"text": "..."}]}}], "usageMetadata": {...}}
-
-Translation:
-    parts[].text present               -> TEXT_DELTA (emit TEXT_START on first)
-    parts[].functionCall present       -> TOOL_CALL_START + TOOL_CALL_END (full call in one chunk)
-    candidate.finishReason present     -> TEXT_END
-    Final chunk                        -> FINISH with accumulated response
-```
-
-Note: Gemini typically delivers function calls as complete objects in a single chunk, not incrementally. Emit both TOOL_CALL_START and TOOL_CALL_END for each function call.
 
 ### 7.8 Provider Quirks Reference
 
 A summary of provider-specific behaviors that adapters must handle:
 
-| Concern                      | OpenAI                           | Anthropic                              | Gemini                              |
-|------------------------------|----------------------------------|----------------------------------------|-------------------------------------|
-| **Native API**               | **Responses API** (`/v1/responses`) | **Messages API** (`/v1/messages`)   | **Gemini API** (`/v1beta/...generateContent`) |
-| System message handling      | `instructions` parameter         | Extracted to `system` parameter        | Extracted to `systemInstruction`    |
-| Developer role               | `instructions` or `developer` role | Merged with system                   | Merged with system                  |
-| Message alternation          | No strict requirement            | Strict user/assistant alternation      | No strict requirement               |
-| Reasoning tokens             | Via `output_tokens_details`; requires Responses API | Via thinking blocks (text visible) | Via `thoughtsTokenCount`          |
-| Tool call IDs                | Provider-assigned unique IDs     | Provider-assigned unique IDs           | No unique IDs (use function name)   |
-| Tool result format           | Separate `tool` role messages    | `tool_result` blocks in user messages  | `functionResponse` in user content  |
-| Tool choice "none"           | `"none"`                         | Omit tools from request entirely       | `"NONE"`                            |
-| max_tokens                   | Optional                         | Required (default to 4096)             | Optional (as `maxOutputTokens`)     |
-| Thinking blocks              | Not exposed (o-series internal)  | `thinking` / `redacted_thinking` blocks| `thought` parts (2.5 models)       |
-| Structured output            | Native json_schema mode          | Prompt engineering or tool extraction  | Native responseSchema               |
-| Streaming protocol           | SSE with `data:` lines           | SSE with event type + data lines       | SSE (with `?alt=sse`) or JSON       |
-| Stream termination           | `data: [DONE]`                   | `message_stop` event                   | Final chunk (no explicit signal)    |
-| Finish reason for tools      | `tool_calls`                     | `tool_use`                             | No dedicated reason (infer from parts)|
-| Image input                  | Data URI in `image_url`          | `base64` source with `media_type`      | `inlineData` with `mimeType`        |
-| Prompt caching               | Automatic (free, 50% discount)   | Requires explicit `cache_control` blocks (90% discount) | Automatic (free prefix caching)   |
-| Beta/feature headers         | N/A (features in request body)   | `anthropic-beta` header (comma-separated) | N/A (features in request body)   |
-| Authentication               | Bearer token in Authorization    | `x-api-key` header                     | `key` query parameter               |
-| API versioning               | Via URL path (/v1/)              | `anthropic-version` header             | Via URL path (/v1beta/)             |
+| Concern                      | Anthropic                                 | OpenRouter (Chat Completions)              |
+|------------------------------|-------------------------------------------|--------------------------------------------|
+| **Native API**               | **Messages API** (`/v1/messages`)         | **Chat Completions** (`/v1/chat/completions`) |
+| System message handling      | Extracted to `system` parameter           | `system` role message                      |
+| Developer role               | Merged with system                        | `developer` role (or merged with system)   |
+| Message alternation          | Strict user/assistant alternation         | No strict requirement                      |
+| Reasoning tokens             | Via thinking blocks (text visible)        | Via `completion_tokens_details` (model-dependent) |
+| Tool call IDs                | Provider-assigned unique IDs              | Provider-assigned unique IDs               |
+| Tool result format           | `tool_result` blocks in user messages     | Separate `tool` role messages              |
+| Tool choice "none"           | Omit tools from request entirely          | `"none"`                                   |
+| max_tokens                   | Required (default to 4096)                | Optional                                   |
+| Thinking blocks              | `thinking` / `redacted_thinking` blocks   | Not exposed (model-dependent)              |
+| Structured output            | Prompt engineering or tool extraction     | `response_format: json_schema` (if model supports) |
+| Streaming protocol           | SSE with event type + data lines          | SSE with `data:` lines                     |
+| Stream termination           | `message_stop` event                      | `data: [DONE]`                             |
+| Finish reason for tools      | `tool_use`                                | `tool_calls`                               |
+| Image input                  | `base64` source with `media_type`         | Data URI in `image_url`                    |
+| Prompt caching               | Requires explicit `cache_control` blocks (90% discount) | Automatic (model-dependent)  |
+| Beta/feature headers         | `anthropic-beta` header (comma-separated) | `HTTP-Referer`, `X-Title` for attribution  |
+| Authentication               | `x-api-key` header                        | Bearer token in Authorization              |
+| API versioning               | `anthropic-version` header                | Via URL path (/v1/)                        |
 
 ### 7.9 Adding a New Provider
 
@@ -1763,18 +1667,29 @@ To add support for a new provider:
 6. **Handle provider quirks.** Document any provider-specific behaviors (like Anthropic's strict alternation or Gemini's missing tool call IDs) and handle them in the adapter.
 7. **Register the adapter.** Add it to `Client.from_env()` with the appropriate environment variable checks, or allow users to register it programmatically.
 
-### 7.10OpenAI-Compatible Endpoints
+### 7.10 OpenAI-Compatible Endpoints
 
-Many third-party services (vLLM, Ollama, Together AI, Groq, etc.) expose an OpenAI-compatible Chat Completions API. For these services, provide a separate `OpenAICompatibleAdapter` that uses the Chat Completions endpoint (`/v1/chat/completions`) rather than the Responses API:
+Many services (OpenRouter, vLLM, Ollama, Together AI, Groq, etc.) expose an OpenAI-compatible Chat Completions API. The `OpenAICompatibleAdapter` uses the Chat Completions endpoint (`/v1/chat/completions`) and works for any such service:
 
 ```
+-- OpenRouter
+adapter = OpenAICompatibleAdapter(
+    api_key = "sk-or-...",
+    base_url = "https://openrouter.ai/api/v1",
+    default_headers = {
+        "HTTP-Referer": "https://myapp.example.com",
+        "X-Title": "My App"
+    }
+)
+
+-- Self-hosted vLLM
 adapter = OpenAICompatibleAdapter(
     api_key = "...",
     base_url = "https://my-vllm-instance.example.com/v1"
 )
 ```
 
-This adapter is distinct from the primary OpenAI adapter (which uses the Responses API) because third-party services typically only implement the Chat Completions protocol. The compatible adapter does not support reasoning tokens, built-in tools, or other Responses API features.
+This adapter uses the Chat Completions protocol. Reasoning tokens, extended thinking, and other provider-specific features are only available if the underlying model/service supports them through this protocol.
 
 ---
 
@@ -1891,7 +1806,8 @@ PRINT(response.usage)
 
 ```
 result = generate_object(
-    model = "gpt-5.2",
+    model = "anthropic/claude-opus-4-6",
+    provider = "openrouter",
     prompt = "Extract the person's name and age from: 'Alice is 30 years old'",
     schema = {
         "type": "object",
@@ -1910,9 +1826,9 @@ PRINT(result.output)    -- { "name": "Alice", "age": 30 }
 
 ```
 TRY:
-    result = generate(model = "claude-opus-4-6", prompt = "...")
+    result = generate(model = "claude-opus-4-6", provider = "anthropic", prompt = "...")
 CATCH ProviderError:
-    result = generate(model = "gpt-5.2", provider = "openai", prompt = "...")
+    result = generate(model = "anthropic/claude-opus-4-6", provider = "openrouter", prompt = "...")
 ```
 
 ### B.6 Middleware for Logging
@@ -1927,7 +1843,10 @@ FUNCTION logging_middleware(request, next):
     RETURN response
 
 client = Client(
-    providers = { "anthropic": AnthropicAdapter(...) },
+    providers = {
+        "anthropic": AnthropicAdapter(...),
+        "openrouter": OpenAICompatibleAdapter(base_url="https://openrouter.ai/api/v1", ...)
+    },
     middleware = [logging_middleware]
 )
 ```
@@ -1958,7 +1877,7 @@ This appendix summarizes key design decisions and the reasoning behind them. The
 
 **Why not retry timed-out requests by default?** Timeouts indicate the operation is inherently slow, not that it failed transiently. Applications can opt in to timeout retries.
 
-**Why use each provider's native API instead of just targeting Chat Completions everywhere?** The Chat Completions API is an OpenAI-specific protocol that other providers partially mimic as a convenience shim. Using it as the universal transport loses critical capabilities: OpenAI's own Responses API exposes reasoning tokens that Chat Completions hides; Anthropic's Messages API supports thinking blocks, prompt caching, and beta headers; Gemini's native API supports grounding and code execution. The unified SDK's value is precisely in abstracting over these different native APIs so callers don't have to. Using a compatibility layer would defeat the purpose.
+**Why use Anthropic's native API instead of Chat Completions for Anthropic?** Anthropic's Messages API supports thinking blocks with signatures, prompt caching via `cache_control`, and beta headers for extended capabilities. An OpenAI-compatible shim for Anthropic would lose all of these. OpenRouter, by contrast, is designed around Chat Completions as its primary protocol, so using `OpenAICompatibleAdapter` is correct for it.
 
 **Why handle parallel tool execution in the SDK instead of leaving it to the caller?** When a model returns 5 parallel tool calls, the correct behavior is to execute all 5 concurrently, wait for all to complete, and send all 5 results back in one continuation. This is fiddly to implement correctly (error handling, ordering, timeout management) and identical for every consumer. Doing it once in the SDK means coding agents and other downstream tools get it for free.
 
@@ -1981,9 +1900,9 @@ This section defines how to validate that an implementation of this spec is comp
 
 ### 8.2 Provider Adapters
 
-For EACH provider (OpenAI, Anthropic, Gemini), verify:
+For EACH provider (Anthropic, OpenRouter), verify:
 
-- [ ] Adapter uses the provider's **native API** (OpenAI: Responses API, Anthropic: Messages API, Gemini: Gemini API) -- NOT a compatibility shim
+- [ ] Adapter uses the provider's **native API** (Anthropic: Messages API, OpenRouter: Chat Completions via `OpenAICompatibleAdapter`) -- NOT a custom shim
 - [ ] Authentication works (API key from env var or explicit config)
 - [ ] `complete()` sends a request and returns a correctly populated `Response`
 - [ ] `stream()` returns an async iterator of correctly typed `StreamEvent` objects
@@ -2019,24 +1938,19 @@ For EACH provider (OpenAI, Anthropic, Gemini), verify:
 
 ### 8.5 Reasoning Tokens
 
-- [ ] OpenAI reasoning models (GPT-5.2 series, etc.) return `reasoning_tokens` in `Usage` via the Responses API
-- [ ] `reasoning_effort` parameter is passed through correctly to OpenAI reasoning models
 - [ ] Anthropic extended thinking blocks are returned as `THINKING` content parts when enabled
 - [ ] Thinking block `signature` field is preserved for round-tripping
-- [ ] Gemini thinking tokens (`thoughtsTokenCount`) are mapped to `reasoning_tokens` in `Usage`
+- [ ] OpenRouter: `reasoning_tokens` populated from `completion_tokens_details.reasoning_tokens` when present
 - [ ] `Usage` correctly reports `reasoning_tokens` as distinct from `output_tokens`
 
 ### 8.6 Prompt Caching
 
-- [ ] **OpenAI**: caching works automatically via the Responses API (no client-side configuration needed)
-- [ ] **OpenAI**: `Usage.cache_read_tokens` is populated from `usage.prompt_tokens_details.cached_tokens`
 - [ ] **Anthropic**: adapter automatically injects `cache_control` breakpoints on the system prompt, tool definitions, and conversation prefix
 - [ ] **Anthropic**: `prompt-caching-2024-07-31` beta header is included automatically when cache_control is present
 - [ ] **Anthropic**: `Usage.cache_read_tokens` and `Usage.cache_write_tokens` are populated correctly
 - [ ] **Anthropic**: automatic caching can be disabled via `provider_options.anthropic.auto_cache = false`
-- [ ] **Gemini**: automatic prefix caching works (no client-side configuration needed)
-- [ ] **Gemini**: `Usage.cache_read_tokens` is populated from `usageMetadata.cachedContentTokenCount`
-- [ ] Multi-turn agentic session: verify that turn 5+ shows significant cache_read_tokens (>50% of input tokens) for all three providers
+- [ ] **OpenRouter**: `Usage.cache_read_tokens` is populated from `usage.prompt_tokens_details.cached_tokens` when present
+- [ ] Multi-turn agentic session: verify that turn 5+ shows significant cache_read_tokens for Anthropic
 
 ### 8.7 Tool Calling
 

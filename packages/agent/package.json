@@ -1,0 +1,22 @@
+{
+  "name": "@attractor/agent",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Coding Agent Loop — programmable agentic loop for coding tasks",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run tests/integration.test.ts"
+  },
+  "dependencies": {
+    "@attractor/llm": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

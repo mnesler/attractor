@@ -1,0 +1,15 @@
+Step 1 — Build the LLM client:
+  Implement the Unified LLM Client as described in
+  https://github.com/strongdm/attractor/blob/main/unified-llm-spec.md
+
+  Start with the Anthropic and OpenRouter adapters only. Use TypeScript.
+
+  Step 2 — Build the coding agent loop:
+  Using the LLM client you just built, implement the Coding Agent Loop
+  as described in https://github.com/strongdm/attractor/blob/main/coding-agent-loop-spec.md
+
+  Implement the OpenRouter profile first. Use the LocalExecutionEnvironment.
+
+  Step 3 — Build Attractor itself:
+  Using the coding agent loop you just built, implement Attractor as
+  described in https://github.com/strongdm/attractor/blob/main/attractor-spec.md

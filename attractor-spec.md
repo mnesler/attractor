@@ -1478,14 +1478,14 @@ Later rules of equal specificity override earlier ones. Explicit node attributes
 | Property           | Values                     | Description |
 |--------------------|----------------------------|-------------|
 | `llm_model`        | Any model identifier string | Provider-native model ID (e.g., `gpt-5.2`, `claude-opus-4-6`) |
-| `llm_provider`     | Provider key string         | `openai`, `anthropic`, `gemini`, etc. |
+| `llm_provider`     | Provider key string         | `anthropic`, `openrouter`, `opencode`, etc. |
 | `reasoning_effort`  | `low`, `medium`, `high`    | Controls reasoning/thinking depth for the LLM |
 
 ### 8.5 Application Order
 
 The resolution order for any model-related property on a node is:
 
-1. Explicit node attribute (e.g., `llm_model="gpt-5.2"` on the node) -- highest precedence
+1. Explicit node attribute (e.g., `llm_model="claude-opus-4-6"` on the node) -- highest precedence
 2. Stylesheet rule matching by specificity (ID > class > universal)
 3. Graph-level default attribute
 4. Handler/system default
@@ -1501,7 +1501,7 @@ digraph Pipeline {
         model_stylesheet="
             * { llm_model: claude-sonnet-4-5; llm_provider: anthropic; }
             .code { llm_model: claude-opus-4-6; llm_provider: anthropic; }
-            #critical_review { llm_model: gpt-5.2; llm_provider: openai; reasoning_effort: high; }
+            #critical_review { llm_model: anthropic/claude-opus-4-6; llm_provider: openrouter; reasoning_effort: high; }
         "
     ]
 

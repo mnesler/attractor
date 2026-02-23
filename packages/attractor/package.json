@@ -1,0 +1,23 @@
+{
+  "name": "@attractor/attractor",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "DOT-based AI workflow pipeline runner",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run tests/integration.test.ts"
+  },
+  "dependencies": {
+    "@attractor/agent": "0.1.0",
+    "@attractor/llm": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

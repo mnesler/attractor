@@ -26,7 +26,7 @@ This spec layers on top of the [Unified LLM Client Specification](./unified-llm-
 
 A coding agent is a system that takes a natural language instruction ("fix the login bug", "add dark mode", "write tests for this module"), plans a solution, and executes it by reading files, editing code, running commands, and iterating until the task is done. The core challenge is orchestrating an agentic loop that coordinates LLM calls, tool execution, context management, and provider-specific behavior into a reliable autonomous workflow.
 
-Each LLM provider's models are trained and optimized for specific tool interfaces and system prompts. GPT-5.2 and the GPT-5.2-codex series work best with the same tools and prompts as codex-rs. Gemini models work best with the same tools and prompts as gemini-cli. Anthropic models work best with the same tools and prompts as Claude Code. A good coding agent respects this reality rather than forcing a universal toolset on all models.
+Each LLM provider's models are trained and optimized for specific tool interfaces and system prompts. Anthropic models work best with the same tools and prompts as Claude Code. Models accessed through OpenRouter benefit from a compatible, provider-agnostic toolset. A good coding agent respects this reality rather than forcing a universal toolset on all models.
 
 ### 1.2 Why a Library, Not a CLI
 
@@ -70,9 +70,9 @@ The fidelity of control is the point. Every coding agent CLI is built on an agen
 |  Coding Agent Loop                                |
 |  +--------------------+  +---------------------+ |
 |  | Session            |  | Provider Profiles   | |
-|  |  - history         |  |  - OpenAI (codex)   | |
+|  |  - history         |  |  - OpenCode         | |
 |  |  - steering queue  |  |  - Anthropic (cc)   | |
-|  |  - event emitter   |  |  - Gemini (cli)     | |
+|  |  - event emitter   |  |  - OpenRouter       | |
 |  +--------------------+  +---------------------+ |
 |  +--------------------+  +---------------------+ |
 |  | Tool Registry      |  | Execution Env       | |
@@ -90,7 +90,7 @@ The fidelity of control is the point. Every coding agent CLI is built on an agen
         v
 +--------------------------------------------------+
 |  LLM Provider APIs                                |
-|  (OpenAI Responses / Anthropic Messages / Gemini) |
+|  (Anthropic Messages / OpenRouter / OpenCode) |
 +--------------------------------------------------+
 ```
 
@@ -100,11 +100,9 @@ The agent loop does NOT use the Unified LLM SDK's `generate()` high-level functi
 
 The following open-source projects solve related problems and are worth studying for anyone implementing this spec.
 
-- **codex-rs** (https://github.com/openai/codex/tree/main/codex-rs) -- Rust. OpenAI's coding agent. Demonstrates async turn-based loop, 15+ tools including `apply_patch` (v4a diff format), output truncation with head/tail split (1 MiB cap), 10-second default command timeout, platform-specific sandboxing, sub-agent spawning, and environment variable filtering.
+- **opencode** (https://github.com/sst/opencode) -- Go/TypeScript. SST's open-source coding agent. Demonstrates multi-provider support, a minimal tool set (read, write, edit, bash), streaming event output, and a clean session model that works across OpenAI-compatible providers.
 
 - **pi-agent-core** (https://github.com/badlogic/pi-mono/tree/main/packages/agent) -- TypeScript. Minimal agent core by @mariozechner. Demonstrates 4-tool minimalism (read, write, edit, bash), explicit `steer()` and `followUp()` queues for mid-turn message injection, 15+ event types, configurable thinking levels, context transform hooks, and abort signal support.
-
-- **gemini-cli** (https://github.com/google-gemini/gemini-cli) -- TypeScript. Google's CLI agent. Demonstrates ReAct loop, 18+ built-in tools including web search and web fetch, GEMINI.md for project-specific instructions, headless/non-interactive mode for automation, and multiple authentication methods.
 
 ### 1.5 Relationship to the Unified LLM SDK
 
@@ -385,7 +383,7 @@ The `reasoning_effort` config controls how much reasoning/thinking the model doe
 | "high"   | Deep reasoning. Slower, more expensive. Good for complex tasks. |
 | null     | Provider default (no override).                                 |
 
-Changing `reasoning_effort` mid-session takes effect on the next LLM call. For OpenAI reasoning models (GPT-5.2 series), this controls the reasoning token budget. For Anthropic models with extended thinking, this maps to the thinking budget. For Gemini models with thinking, this maps to thinkingConfig.
+Changing `reasoning_effort` mid-session takes effect on the next LLM call. For Anthropic models with extended thinking, this maps to the thinking budget. For models accessed via OpenRouter, the value is passed through to the underlying provider's reasoning configuration if supported.
 
 ### 2.8 Stop Conditions
 
@@ -455,16 +453,16 @@ FUNCTION detect_loop(history, window_size) -> Boolean:
 
 ### 3.1 The Provider Alignment Principle
 
-Models are trained and optimized for specific tool interfaces. OpenAI's models are trained on codex-rs's apply_patch format and tool schemas. Anthropic's models are trained on Claude Code's old_string/new_string editing and tool schemas. Gemini models are trained on gemini-cli's tool set.
+Models are trained and optimized for specific tool interfaces. Anthropic's models are trained on Claude Code's old_string/new_string editing and tool schemas. Models accessed via OpenRouter and OpenCode benefit from a compatible, provider-agnostic toolset built around the shared core tools.
 
-Using a provider's native tool format produces better results than forcing a universal format. **The initial base for each provider should be a 1:1 copy of the provider's reference agent -- the exact same system prompt, the exact same tool definitions, byte for byte.** Not a similar prompt. Not similar tools. The actual prompt and harness that the model was evaluated and optimized against. Then extend it with additional capabilities (like subagents). Do not make all providers conform to a single tool interface.
+Using a model's native tool format produces better results than forcing a universal format. **The initial base for the Anthropic profile should be a 1:1 copy of Claude Code's tool definitions and system prompt -- byte for byte.** For OpenCode and OpenRouter profiles, mirror the OpenCode tool conventions as the baseline. Then extend each with additional capabilities (like subagents). Do not force all models into a single tool interface.
 
 ### 3.2 ProviderProfile Interface
 
 ```
 INTERFACE ProviderProfile:
-    id              : String            -- "openai", "anthropic", "gemini"
-    model           : String            -- model identifier (e.g., "gpt-5.2-codex")
+    id              : String            -- "anthropic", "opencode", "openrouter"
+    model           : String            -- model identifier (e.g., "claude-opus-4-6")
     tool_registry   : ToolRegistry      -- all tools available to this profile
 
     FUNCTION build_system_prompt(environment, project_docs) -> String
@@ -579,40 +577,24 @@ TOOL glob:
     errors: Invalid pattern, path not found
 ```
 
-### 3.4 OpenAI Profile (codex-rs-aligned)
+### 3.4 OpenCode Profile (opencode-aligned)
 
-For GPT-5.2, GPT-5.2-codex, and other OpenAI models. Mirrors the codex-rs toolset.
+For models used through OpenCode (https://opencode.ai). Mirrors the OpenCode toolset and conventions.
 
-**Key difference: `apply_patch` replaces `edit_file` and `write_file` for file modifications.** OpenAI models are specifically trained on this format and produce significantly better edits when using it.
+**Key characteristic: OpenCode uses the shared core tool set** (read_file, write_file, edit_file, shell, grep, glob) with no provider-specific patch format. This makes it suitable as a portable profile for non-Anthropic models accessed via OpenCode.
 
-Additional/modified tools beyond the shared core:
+**Profile tool list for OpenCode:**
+- `read_file` (line-numbered output, offset/limit support)
+- `write_file` (full file writes)
+- `edit_file` (old_string/new_string search-and-replace)
+- `shell` (command execution, 10s default timeout matching OpenCode conventions)
+- `grep` (ripgrep-backed search)
+- `glob` (file pattern matching)
+- Subagent tools (Section 7)
 
-#### apply_patch (OpenAI-specific)
+**System prompt:** Should mirror the OpenCode system prompt structure. Cover identity, tool usage guidelines, file operation preferences (read before edit, prefer edits over full rewrites), and coding best practices.
 
-```
-TOOL apply_patch:
-    description: "Apply code changes using the patch format. Supports creating, deleting,
-                  and modifying files in a single operation."
-    parameters:
-        patch       : String (required)     -- the patch content in v4a format
-    returns: List of affected file paths and operations performed
-    errors: Parse error, file not found (for updates), verification failure
-```
-
-The patch format is defined in full in [Appendix A](#appendix-a-apply_patch-v4a-format-reference).
-
-**Profile tool list for OpenAI:**
-- `read_file` (same as shared core, maps to codex-rs `read_file`)
-- `apply_patch` (replaces `edit_file` and `write_file` for modifications)
-- `write_file` (kept for creating new files without patch overhead)
-- `shell` (maps to codex-rs `exec_command`, 10s default timeout)
-- `grep` (maps to codex-rs `grep_files`)
-- `glob` (maps to codex-rs `list_dir`)
-- `spawn_agent`, `send_input`, `wait`, `close_agent` (subagent tools, Section 7)
-
-**System prompt:** Should mirror the codex-rs system prompt structure. Cover identity, tool usage guidelines, the apply_patch format expectations, and coding best practices.
-
-**Provider options:** The OpenAI profile should set `reasoning.effort` on the Responses API request when `reasoning_effort` is configured.
+**Provider options:** The OpenCode profile passes `reasoning_effort` through to the underlying provider's reasoning configuration when the model supports it.
 
 ### 3.5 Anthropic Profile (Claude Code-aligned)
 
@@ -633,32 +615,31 @@ For Claude Opus 4.6, Opus 4.5, Sonnet 4.5, Haiku 4.5, and older Claude models. M
 
 **Provider options:** The Anthropic profile should pass beta headers (e.g., for extended thinking, 1M context) via `provider_options.anthropic.beta_headers`.
 
-### 3.6 Gemini Profile (gemini-cli-aligned)
+### 3.6 OpenRouter Profile (openrouter-aligned)
 
-For Gemini 3 Flash, Gemini 2.5 Pro/Flash, and other Gemini models. Mirrors the gemini-cli toolset.
+For models accessed via OpenRouter (https://openrouter.ai). OpenRouter provides an OpenAI Chat Completions-compatible API that routes to many underlying providers (Anthropic, OpenAI, Mistral, Meta, etc.). This profile uses the shared core tool set, which works well across the diverse range of models available on OpenRouter.
 
-**Profile tool list for Gemini:**
-- `read_file` / `read_many_files` (batch reading support)
-- `write_file`
-- `edit_file` (search-and-replace style, matching gemini-cli conventions)
+**Key characteristic: OpenRouter model identifiers use a `provider/model` format** (e.g., `anthropic/claude-opus-4-6`, `openai/gpt-4.5`, `meta-llama/llama-3.1-70b-instruct`). The profile must pass these through to the underlying OpenRouter adapter without modification.
+
+**Profile tool list for OpenRouter:**
+- `read_file` (line-numbered output, offset/limit support)
+- `write_file` (full file writes)
+- `edit_file` (old_string/new_string search-and-replace)
 - `shell` (command execution, 10s default timeout)
-- `grep` (ripgrep semantics)
+- `grep` (ripgrep-backed search)
 - `glob` (file pattern matching)
-- `list_dir` (directory listing with depth options)
-- `web_search` (optional -- Gemini models have native grounding capabilities)
-- `web_fetch` (optional -- fetch and extract content from URLs)
 - Subagent tools (Section 7)
 
-**System prompt:** Should mirror the gemini-cli system prompt structure. Cover identity, tool usage, GEMINI.md conventions, and coding best practices.
+**System prompt:** Cover identity, tool usage guidelines, file operation preferences, and coding best practices. Keep it provider-neutral since OpenRouter routes to many different underlying models.
 
-**Provider options:** Gemini profile should configure safety settings and grounding via `provider_options.gemini`.
+**Provider options:** The OpenRouter profile should pass `HTTP-Referer` and `X-Title` headers via `provider_options.openrouter` for OpenRouter's usage attribution, and may pass `transforms` and `route` options for model routing preferences.
 
 ### 3.7 Extending Profiles with Custom Tools
 
 After a provider profile is loaded, additional tools can be registered:
 
 ```
-profile = create_openai_profile(model = "gpt-5.2-codex")
+profile = create_opencode_profile(model = "claude-opus-4-6")
 
 -- Add a custom tool on top of the profile
 profile.tool_registry.register(RegisteredTool(
@@ -984,7 +965,7 @@ final_system_prompt =
     1. Provider-specific base instructions     (from ProviderProfile)
   + 2. Environment context                     (platform, git, working dir, date, model info)
   + 3. Tool descriptions                       (from the active profile's tool set)
-  + 4. Project-specific instructions           (AGENTS.md, CLAUDE.md, GEMINI.md, etc.)
+  + 4. Project-specific instructions           (AGENTS.md, CLAUDE.md, OPENCODE.md, etc.)
   + 5. User instructions override              (appended last, highest priority)
 ```
 
@@ -992,9 +973,9 @@ final_system_prompt =
 
 Each profile supplies its own base prompt tuned for the model family. The base instructions should closely mirror the system prompts of the provider's native agent:
 
-- **OpenAI profile:** Mirror codex-rs system prompt. Cover identity, tool usage (especially apply_patch conventions), coding best practices, error handling guidance.
 - **Anthropic profile:** Mirror Claude Code system prompt. Cover identity, tool selection guidance (read before edit, edit over write), the edit_file format (old_string must be unique), file operation preferences.
-- **Gemini profile:** Mirror gemini-cli system prompt. Cover identity, tool usage, GEMINI.md conventions, coding best practices.
+- **OpenCode profile:** Mirror the OpenCode system prompt. Cover identity, tool usage guidelines, file operation preferences, and coding best practices.
+- **OpenRouter profile:** Provider-neutral prompt covering identity, tool usage, and coding best practices. Since OpenRouter routes to many underlying models, keep the prompt broadly compatible.
 
 The spec does NOT prescribe full system prompt text -- those are implementation details that change frequently. It specifies what topics the prompt must cover.
 
@@ -1030,18 +1011,17 @@ The model can always run `git status`, `git diff`, etc. via the shell tool for c
 
 Walk from the git root (or working directory if not in a git repo) to the current working directory. Recognized instruction files:
 
-| File Name                  | Convention       |
-|----------------------------|------------------|
-| `AGENTS.md`                | Universal        |
-| `CLAUDE.md`                | Anthropic-aligned|
-| `GEMINI.md`                | Gemini-aligned   |
-| `.codex/instructions.md`   | OpenAI-aligned   |
+| File Name                  | Convention        |
+|----------------------------|-------------------|
+| `AGENTS.md`                | Universal         |
+| `CLAUDE.md`                | Anthropic-aligned |
+| `OPENCODE.md`              | OpenCode-aligned  |
 
 **Loading rules:**
 - Root-level files are loaded first
 - Subdirectory files are appended (deeper = higher precedence)
 - Total byte budget: 32KB. If exceeded, truncate with a marker: "[Project instructions truncated at 32KB]"
-- Only load files matching the active provider profile (e.g., Anthropic profile loads AGENTS.md and CLAUDE.md, not GEMINI.md)
+- Only load files matching the active provider profile (e.g., Anthropic profile loads AGENTS.md and CLAUDE.md, not OPENCODE.md)
 - AGENTS.md is always loaded regardless of provider
 
 ---
@@ -1149,9 +1129,9 @@ This section defines how to validate that an implementation of this spec is comp
 
 ### 9.2 Provider Profiles
 
-- [ ] OpenAI profile provides codex-rs-aligned tools including `apply_patch` (v4a format)
 - [ ] Anthropic profile provides Claude Code-aligned tools including `edit_file` (old_string/new_string)
-- [ ] Gemini profile provides gemini-cli-aligned tools
+- [ ] OpenCode profile provides OpenCode-aligned tools using the shared core tool set
+- [ ] OpenRouter profile provides a provider-neutral tool set using the shared core tools
 - [ ] Each profile produces a provider-specific system prompt covering identity, tool usage, and coding guidance
 - [ ] Custom tools can be registered on top of any profile
 - [ ] Tool name collisions resolved: custom registration overrides profile defaults
@@ -1202,7 +1182,7 @@ This section defines how to validate that an implementation of this spec is comp
 - [ ] System prompt includes tool descriptions from the active profile
 - [ ] Project documentation files (AGENTS.md + provider-specific files) are discovered and included
 - [ ] User instruction overrides are appended last (highest priority)
-- [ ] Only relevant project files are loaded (e.g., Anthropic profile loads CLAUDE.md, not GEMINI.md)
+- [ ] Only relevant project files are loaded (e.g., Anthropic profile loads CLAUDE.md, not OPENCODE.md)
 
 ### 9.9 Subagents
 
@@ -1232,30 +1212,30 @@ This section defines how to validate that an implementation of this spec is comp
 
 Run this validation matrix -- each cell must pass:
 
-| Test Case                                    | OpenAI | Anthropic | Gemini |
-|----------------------------------------------|--------|-----------|--------|
-| Simple file creation task                    | [ ]    | [ ]       | [ ]    |
-| Read file, then edit it                      | [ ]    | [ ]       | [ ]    |
-| Multi-file edit in one session               | [ ]    | [ ]       | [ ]    |
-| Shell command execution                      | [ ]    | [ ]       | [ ]    |
-| Shell command timeout handling               | [ ]    | [ ]       | [ ]    |
-| Grep + glob to find files                    | [ ]    | [ ]       | [ ]    |
-| Multi-step task (read -> analyze -> edit)    | [ ]    | [ ]       | [ ]    |
-| Tool output truncation (large file)          | [ ]    | [ ]       | [ ]    |
-| Parallel tool calls (if supported)           | [ ]    | [ ]       | [ ]    |
-| Steering mid-task                            | [ ]    | [ ]       | [ ]    |
-| Reasoning effort change                      | [ ]    | [ ]       | [ ]    |
-| Subagent spawn and wait                      | [ ]    | [ ]       | [ ]    |
-| Loop detection triggers warning              | [ ]    | [ ]       | [ ]    |
-| Error recovery (tool fails, model retries)   | [ ]    | [ ]       | [ ]    |
-| Provider-specific editing format works       | [ ]    | [ ]       | [ ]    |
+| Test Case                                    | Anthropic | OpenCode | OpenRouter |
+|----------------------------------------------|-----------|----------|------------|
+| Simple file creation task                    | [ ]       | [ ]      | [ ]        |
+| Read file, then edit it                      | [ ]       | [ ]      | [ ]        |
+| Multi-file edit in one session               | [ ]       | [ ]      | [ ]        |
+| Shell command execution                      | [ ]       | [ ]      | [ ]        |
+| Shell command timeout handling               | [ ]       | [ ]      | [ ]        |
+| Grep + glob to find files                    | [ ]       | [ ]      | [ ]        |
+| Multi-step task (read -> analyze -> edit)    | [ ]       | [ ]      | [ ]        |
+| Tool output truncation (large file)          | [ ]       | [ ]      | [ ]        |
+| Parallel tool calls (if supported)           | [ ]       | [ ]      | [ ]        |
+| Steering mid-task                            | [ ]       | [ ]      | [ ]        |
+| Reasoning effort change                      | [ ]       | [ ]      | [ ]        |
+| Subagent spawn and wait                      | [ ]       | [ ]      | [ ]        |
+| Loop detection triggers warning              | [ ]       | [ ]      | [ ]        |
+| Error recovery (tool fails, model retries)   | [ ]       | [ ]      | [ ]        |
+| Provider-specific editing format works       | [ ]       | [ ]      | [ ]        |
 
 ### 9.13 Integration Smoke Test
 
 End-to-end test with real API keys:
 
 ```
-FOR EACH profile IN [openai_profile, anthropic_profile, gemini_profile]:
+FOR EACH profile IN [anthropic_profile, opencode_profile, openrouter_profile]:
     env = LocalExecutionEnvironment(working_dir = temp_directory())
     session = Session(profile, env)
 
@@ -1296,95 +1276,9 @@ FOR EACH profile IN [openai_profile, anthropic_profile, gemini_profile]:
 
 ---
 
-## Appendix A: apply_patch v4a Format Reference
+## Appendix A: (Reserved)
 
-The `apply_patch` tool (used by the OpenAI profile) accepts patches in the v4a format. This format supports creating, deleting, updating, and renaming files in a single patch.
-
-### Grammar
-
-```
-patch       = "*** Begin Patch\n" operations "*** End Patch\n"
-operations  = (add_file | delete_file | update_file)*
-
-add_file    = "*** Add File: " path "\n" added_lines
-delete_file = "*** Delete File: " path "\n"
-update_file = "*** Update File: " path "\n" [move_line] hunks
-
-move_line   = "*** Move to: " new_path "\n"
-added_lines = ("+" line "\n")*
-hunks       = hunk+
-hunk        = "@@ " [context_hint] "\n" hunk_lines
-hunk_lines  = (context_line | delete_line | add_line)+
-context_line = " " line "\n"           -- space prefix = unchanged line
-delete_line  = "-" line "\n"           -- minus prefix = remove this line
-add_line     = "+" line "\n"           -- plus prefix = add this line
-eof_marker   = "*** End of File\n"     -- optional, marks end of last hunk
-```
-
-### Operations
-
-**Add File:** Creates a new file. All lines are prefixed with `+`.
-```
-*** Begin Patch
-*** Add File: src/utils/helpers.py
-+def greet(name):
-+    return f"Hello, {name}!"
-*** End Patch
-```
-
-**Delete File:** Removes a file entirely.
-```
-*** Begin Patch
-*** Delete File: src/old_module.py
-*** End Patch
-```
-
-**Update File:** Modifies an existing file using context-based hunks.
-```
-*** Begin Patch
-*** Update File: src/main.py
-@@ def main():
-     print("Hello")
--    return 0
-+    print("World")
-+    return 1
-*** End Patch
-```
-
-**Update + Rename:** Modify and rename in one operation.
-```
-*** Begin Patch
-*** Update File: old_name.py
-*** Move to: new_name.py
-@@ import os
- import sys
--import old_dep
-+import new_dep
-*** End Patch
-```
-
-### Hunk Matching
-
-The `@@` line provides a context hint (typically a function signature or recognizable line near the change). The implementation uses this hint plus the context lines (space-prefixed) to locate the correct position in the file. Convention: show 3 lines of context above and below each change.
-
-When exact matching fails, the implementation should attempt fuzzy matching (whitespace normalization, Unicode punctuation equivalence) before reporting an error.
-
-### Multi-Hunk Updates
-
-A single Update File block can contain multiple `@@` hunks:
-
-```
-*** Begin Patch
-*** Update File: src/config.py
-@@ DEFAULT_TIMEOUT = 30
--DEFAULT_TIMEOUT = 30
-+DEFAULT_TIMEOUT = 60
-@@ def load_config():
-     config = {}
--    config["debug"] = False
-+    config["debug"] = True
-*** End Patch
-```
+The apply_patch format previously documented here was specific to the OpenAI/codex-rs profile, which has been removed. The current profiles (Anthropic, OpenCode, OpenRouter) all use `edit_file` (old_string/new_string) for file modifications.
 
 ---
 
@@ -1436,7 +1330,7 @@ When an abort signal fires or an unrecoverable error occurs:
 
 ## Appendix C: Design Decision Rationale
 
-**Why provider-aligned toolsets instead of a universal tool set?** Models may be trained on specific tool formats. GPT-5.2-codex is trained on apply_patch; forcing it to use old_string/new_string editing produces worse results. Claude is trained on old_string/new_string; forcing it to use apply_patch produces worse results. The initial base for each provider profile should be the exact system prompt and tool harness from that provider's reference agent -- not a similar prompt, not similar tools, but a 1:1 byte-for-byte copy of the original prompt and tool definitions as the starting point. Then extend from there. Starting from the native toolset gives the best baseline experience because the model has been evaluated and optimized against exactly that harness.
+**Why provider-aligned toolsets instead of a universal tool set?** Claude models are trained on Claude Code's old_string/new_string editing format; the Anthropic profile starts from Claude Code's exact system prompt and tool harness, byte-for-byte. The OpenCode and OpenRouter profiles use the shared core tool set (read/write/edit/shell/grep/glob), which works well for models that aren't specifically trained against a coding agent harness. Match the tool format to what the model was trained on where possible, and fall back to a clean shared core otherwise.
 
 **Why an extensible execution environment instead of a fixed local implementation?** A coding agent that can only run on the local machine is limited. By abstracting tool execution behind an interface, the same agent logic works in Docker (for sandboxing), in Kubernetes (for cloud execution), over SSH (for remote development), or in WASM (for browser-based agents). The abstraction costs almost nothing in complexity but opens up major deployment flexibility.
 
@@ -1446,6 +1340,6 @@ When an abort signal fires or an unrecoverable error occurs:
 
 **Why does the loop use Client.complete() instead of the SDK's generate()?** The SDK's `generate()` function has its own tool execution loop, but it does not handle: output truncation with explicit markers, steering message injection between tool rounds, event emission for UI rendering, per-tool timeout enforcement, loop detection, or execution environment abstraction. The agent loop needs all of these, so it manages its own loop using the lower-level `Client.complete()`.
 
-**Why 10-second default command timeout?** This matches codex-rs. Most developer commands (compile, lint, test a single file, git operations) complete in under 10 seconds. Long-running commands (full test suites, builds) should be explicitly requested with a longer timeout. The default protects against runaway processes without being so short that normal operations fail.
+**Why 10-second default command timeout?** This matches OpenCode conventions. Most developer commands (compile, lint, test a single file, git operations) complete in under 10 seconds. Long-running commands (full test suites, builds) should be explicitly requested with a longer timeout. The default protects against runaway processes without being so short that normal operations fail.
 
 **Why exclude sensitive environment variables by default?** API keys, secrets, and tokens in the environment should not be visible to the LLM (which might include them in responses or log them). The default excludes `*_API_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD` patterns. This is a safety default, not a security boundary -- the agent can still run commands that access these variables through the shell's own environment if needed.

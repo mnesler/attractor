@@ -1,0 +1,5 @@
+{
+  "name": "attractor",
+  "private": true,
+  "workspaces": ["packages/*"]
+}
