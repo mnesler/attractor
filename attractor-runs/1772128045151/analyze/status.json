@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: analyze",
+  "context_updates": {
+    "last_stage": "analyze",
+    "last_response": "`ANALYSIS.md` is written and accurate. Here's a precise summary of everything discovered:\n\n---\n\n## What Was Found\n\n### Repository structure (important context)\nThe task brief uses spec paths like `src"
+  }
+}

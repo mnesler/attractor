@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-02-26T16:38:41.656Z",
+  "current_node": "start",
+  "completed_nodes": [
+    "start"
+  ],
+  "node_retries": {},
+  "context": {
+    "graph.goal": "",
+    "graph.label": "",
+    "current_node": "start",
+    "last_stage": "start",
+    "last_response": "Here's an overview of what I'm working with:\n\n---\n\n## Attractor — Codebase Overview\n\nThis is a **monorepo** implementing the Attractor DOT-based AI workflow pipeline runner. Here's the current state:\n",
+    "outcome": "success"
+  },
+  "logs": []
+}

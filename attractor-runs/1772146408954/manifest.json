@@ -1,0 +1,5 @@
+{
+  "name": "Implement STORY-001: Project Setup",
+  "goal": "Bootstrap Attractor Pipeline Studio as separate app with complete project structure, TypeScript types, basic components, and routes",
+  "start_time": "2026-02-26T22:53:28.960Z"
+}

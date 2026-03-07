@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: create_pipeline_dir",
+  "context_updates": {
+    "last_stage": "create_pipeline_dir",
+    "last_response": "Done! Here's a summary of everything created:\n\n---\n\n## ✅ `pipelines/` directory created\n\n### What was added\n\n| Path | Purpose |\n|---|---|\n| `pipelines/README.md` | Documents the directory: how to run "
+  }
+}

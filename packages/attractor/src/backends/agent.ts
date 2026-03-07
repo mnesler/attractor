@@ -100,7 +100,7 @@ export class AgentBackend implements CodergenBackend {
         lastText = event.data['text'] as string
       }
       if (event.kind === EventKind.ERROR) {
-        const msg = event.data['message'] as string ?? 'Agent session error'
+        const msg = event.data['error'] as string ?? 'Agent session error'
         return { status: 'fail', failure_reason: msg }
       }
     }

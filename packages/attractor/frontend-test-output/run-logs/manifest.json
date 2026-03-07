@@ -1,0 +1,5 @@
+{
+  "name": "FrontendTestPipeline",
+  "goal": "Add artificial delays to deck loading flow so loading animations are clearly visible",
+  "start_time": "2026-02-23T21:23:37.268Z"
+}

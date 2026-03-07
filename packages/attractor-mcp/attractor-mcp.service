@@ -1,0 +1,18 @@
+[Unit]
+Description=Attractor MCP Server
+Documentation=https://github.com/attractor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/attractor
+ExecStart=/usr/bin/env npx tsx %h/attractor/packages/attractor-mcp/src/index.ts
+Restart=on-failure
+RestartSec=5
+
+# Load API keys from ~/.config/attractor-mcp/env
+# Create this file with: OPENROUTER_API_KEY=sk-or-...
+EnvironmentFile=-%h/.config/attractor-mcp/env
+
+[Install]
+WantedBy=default.target

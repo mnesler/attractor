@@ -1,6 +1,7 @@
 import { Message, Role, ContentKind } from './message.js'
 import type { ToolCall } from './tool.js'
-import { Response, FinishReason, Usage, Warning, RateLimitInfo, zeroUsage } from './response.js'
+import { Response, zeroUsage } from './response.js'
+import type { FinishReason, Usage, Warning, RateLimitInfo } from './response.js'
 import type { SDKError } from './errors.js'
 
 export enum StreamEventType {

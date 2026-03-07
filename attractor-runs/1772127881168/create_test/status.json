@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: create_test",
+  "context_updates": {
+    "last_stage": "create_test",
+    "last_response": "Clean. Here's a summary of every decision made.\n\n---\n\n## What was created and why\n\n### `test-mtg-assistant.ts` — at repo root, runnable with `npx tsx`\n\nThe example in the task brief assumed a SvelteKi"
+  }
+}

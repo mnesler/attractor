@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: calculate",
+  "context_updates": {
+    "last_stage": "calculate",
+    "last_response": "Done! ✅\n\n**1 + 1 = 2**\n\nThe answer has been written to `ANSWER.txt`. The Attractor MCP is working correctly!"
+  }
+}

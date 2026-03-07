@@ -4,9 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Purpose
 
-This is a **specification-only repository** — it contains no runnable code, no build system, and no tests. It defines three NLSpecs (Natural Language Specs) intended to be fed to coding agents to implement Attractor: a DOT-based AI workflow pipeline runner.
+This repository contains both the **NLSpecs** (Natural Language Specs) that define Attractor's design intent *and* the full **implementation** of the Attractor pipeline runner as a TypeScript monorepo.
 
-There are no build, lint, or test commands. All work here is authoring and editing markdown specification documents.
+- **Specs** live in [`attractor-spec/`](./attractor-spec/) — three markdown documents intended to be fed to coding agents.
+- **Implementation** lives in [`packages/`](./packages/) — four npm workspaces (`llm`, `agent`, `attractor`, `attractor-mcp`).
+- **Pipelines** live in [`pipelines/`](./pipelines/) — runnable `.mts` files executed with `npx tsx`.
+
+### Build & test commands
+
+```bash
+npm install                                  # install all workspace deps
+npm run build --workspaces --if-present      # compile TypeScript across all packages
+npx vitest run                               # run full test suite
+npx vitest run --project packages/attractor  # run a single package's tests
+```
 
 ## Terminology
 

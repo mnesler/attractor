@@ -1,5 +1,5 @@
 {
   "name": "FrontendTestPipeline",
-  "goal": "Fix broken Playwright e2e tests for the SolidJS TCG app on localhost:3000 and do not stop until they all pass",
-  "start_time": "2026-02-23T18:42:06.267Z"
+  "goal": "Wire Deck Assistant chat to local Docker model runner hf.co/minimaxir/magic-the-gathering",
+  "start_time": "2026-02-23T23:40:12.443Z"
 }

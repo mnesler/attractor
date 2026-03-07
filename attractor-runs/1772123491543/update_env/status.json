@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: update_env",
+  "context_updates": {
+    "last_stage": "update_env",
+    "last_response": "I can see the `.env` file contains two API keys. What updates would you like me to make to the `.env` file? For example:\n\n- **Add** new environment variables (e.g. a new API key, model name, base URL)"
+  }
+}

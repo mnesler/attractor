@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: update_types",
+  "context_updates": {
+    "last_stage": "update_types",
+    "last_response": "The picture is now completely clear. Here's the full accounting:\n\n**OpenRouter types** — fully covered in `packages/llm/`:\n- API request/response shapes → `request.ts`, `response.ts`\n- Auth/adapter op"
+  }
+}

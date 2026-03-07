@@ -101,7 +101,7 @@ export function createGraph(id: string): Graph {
 }
 
 export function addEdge(g: Graph, edge: Edge): void {
-  ;(g as unknown as Record<string, unknown>)['_addEdge'](edge)
+  ;(g as unknown as Record<string, (e: Edge) => void>)['_addEdge']!(edge)
 }
 
 /** Parse a Duration string like "900s", "15m", "2h", "250ms", "1d" → milliseconds */

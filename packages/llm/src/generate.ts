@@ -1,12 +1,15 @@
 import { Message, Role, ContentKind } from './types/message.js'
 import type { Request } from './types/request.js'
-import { Response, GenerateResult, StepResult, addUsage, zeroUsage } from './types/response.js'
-import { StreamEvent, StreamEventType, StreamResult } from './types/stream.js'
+import { Response, addUsage, zeroUsage } from './types/response.js'
+import type { GenerateResult, StepResult } from './types/response.js'
+import { StreamEventType, StreamResult } from './types/stream.js'
+import type { StreamEvent } from './types/stream.js'
 import type { Tool, ToolCall, ToolResult, ResponseFormat } from './types/tool.js'
 import type { ToolChoice } from './types/tool.js'
 import { NoObjectGeneratedError, InvalidRequestError, ConfigurationError } from './types/errors.js'
 import { Client, getDefaultClient } from './client.js'
-import { withRetry, RetryPolicy, DEFAULT_RETRY_POLICY } from './retry.js'
+import { withRetry, DEFAULT_RETRY_POLICY } from './retry.js'
+import type { RetryPolicy } from './retry.js'
 
 // ---------------------------------------------------------------------------
 // Shared parameter types

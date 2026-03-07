@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 .env
 .env.*
+
+# Generated pipeline run logs & history
+pipeline-output/

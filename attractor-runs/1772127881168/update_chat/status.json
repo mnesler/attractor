@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: update_chat",
+  "context_updates": {
+    "last_stage": "update_chat",
+    "last_response": "Zero TypeScript errors. Here's a precise summary of everything that was done:\n\n---\n\n## What changed\n\n### New file: `src/lib/server/rag.ts` (119 lines)\n\nA pure, self-contained RAG helper with no networ"
+  }
+}

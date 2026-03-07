@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-03-02T16:10:25.463Z",
+  "current_node": "add_numbers",
+  "completed_nodes": [
+    "start",
+    "add_numbers"
+  ],
+  "node_retries": {},
+  "context": {
+    "graph.goal": "",
+    "graph.label": "",
+    "current_node": "add_numbers",
+    "outcome": "fail"
+  },
+  "logs": []
+}

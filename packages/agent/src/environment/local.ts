@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { promises as fs, type Dirent } from 'node:fs'
 import * as path from 'node:path'
 import { spawn } from 'node:child_process'
 import * as os from 'node:os'
@@ -238,7 +238,7 @@ export class LocalExecutionEnvironment implements ExecutionEnvironment {
     const allFiles: FileEntry[] = []
 
     const walk = async (dir: string) => {
-      let entries: Awaited<ReturnType<typeof fs.readdir>>
+      let entries: Dirent<string>[]
       try {
         entries = await fs.readdir(dir, { withFileTypes: true })
       } catch {

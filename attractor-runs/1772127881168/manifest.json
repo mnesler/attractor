@@ -1,0 +1,5 @@
+{
+  "name": "Hybrid MTG Assistant Implementation",
+  "goal": "Replace local Docker model with Kimi k2.5 + minimal RAG using Scryfall for MTG deck building assistant",
+  "start_time": "2026-02-26T17:44:41.174Z"
+}

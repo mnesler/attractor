@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: update_types",
+  "context_updates": {
+    "last_stage": "update_types",
+    "last_response": "That's a thorough picture. Here's the complete type accounting:\n\n**`types.ts` already defines:**\n- `DeckCard` — used by `deck-parser.ts`, `chat.ts` via `deckContext`, `scryfall.ts`\n- `ScryfallCard` — "
+  }
+}

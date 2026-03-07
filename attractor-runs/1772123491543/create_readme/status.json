@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "notes": "Stage completed: create_readme",
+  "context_updates": {
+    "last_stage": "create_readme",
+    "last_response": "The README looks good. Here's a summary of what was written and why:\n\n---\n\n## `README.md` — Created\n\n### What it covers\n\nThe previous `README.md` was a stub pointing at the spec files. The new README "
+  }
+}

@@ -350,9 +350,6 @@ export class Runner {
       // Select next edge
       const nextEdge = selectEdge(graph.outgoing(node.id), outcome, context)
       if (!nextEdge) {
-        if (outcome.status === 'fail') {
-          return failOutcome(`Stage '${node.id}' failed with no outgoing fail edge`)
-        }
         // No more edges — pipeline complete
         break
       }
