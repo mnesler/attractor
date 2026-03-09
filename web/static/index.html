@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attractor Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3350;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --success: #22c55e;
+      --fail: #ef4444;
+      --running: #f59e0b;
+      --partial: #a78bfa;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --radius: 8px;
+      --radius-sm: 4px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Header */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .logo-icon { color: var(--accent); font-size: 22px; }
+    /* Layout */
+    .app { display: flex; flex: 1; min-height: 0; }
+    aside {
+      width: 260px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    main { flex: 1; overflow-y: auto; padding: 24px; }
+    /* Sidebar */
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); }
+    .sidebar-list { overflow-y: auto; flex: 1; }
+    .sidebar-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sidebar-item:hover { background: var(--surface2); }
+    .sidebar-item.active { background: var(--surface2); border-left: 3px solid var(--accent); }
+    .sidebar-item-name { font-size: 14px; font-weight: 500; }
+    .sidebar-item-meta { font-size: 11px; color: var(--text-muted); }
+    /* Buttons */
+    .btn {
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.15s, opacity 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-success { background: #14532d; color: var(--success); }
+    .badge-fail { background: #7f1d1d; color: #fca5a5; }
+    .badge-running { background: #78350f; color: #fbbf24; }
+    .badge-partial { background: #2e1065; color: #c4b5fd; }
+    .badge-cancelled { background: #1e293b; color: var(--text-muted); }
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+    .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: 10px 12px; vertical-align: middle; }
+    /* Forms */
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-muted); }
+    input, textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    textarea { resize: vertical; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; }
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200;
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 100%;
+      max-width: 640px;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .modal-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+    /* Timeline */
+    .timeline { display: flex; flex-direction: column; gap: 8px; }
+    .timeline-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 120px 1fr auto;
+      gap: 12px;
+      align-items: start;
+    }
+    .timeline-item.success { border-left: 3px solid var(--success); }
+    .timeline-item.fail, .timeline-item.failed { border-left: 3px solid var(--fail); }
+    .timeline-item.running { border-left: 3px solid var(--running); }
+    .timeline-item.partial_success { border-left: 3px solid var(--partial); }
+    .timeline-node-id { font-family: monospace; font-size: 12px; color: var(--text-muted); }
+    .timeline-node-label { font-size: 14px; font-weight: 500; }
+    .timeline-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .timeline-meta span { display: flex; align-items: center; gap: 4px; }
+    .timeline-duration { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+    /* Empty */
+    .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .empty-text { font-size: 15px; }
+    /* Notifications */
+    #notif {
+      position: fixed; top: 16px; right: 16px; z-index: 300;
+      display: flex; flex-direction: column; gap: 8px; max-width: 320px;
+    }
+    .notif-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: 13px;
+      animation: slideIn 0.2s ease;
+    }
+    .notif-item.error { border-left: 3px solid var(--fail); }
+    .notif-item.success { border-left: 3px solid var(--success); }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    /* Misc */
+    .flex-row { display: flex; align-items: center; gap: 8px; }
+    .flex-between { display: flex; align-items: center; justify-content: space-between; }
+    .mt-8 { margin-top: 8px; }
+    .text-muted { color: var(--text-muted); }
+    .text-sm { font-size: 12px; }
+    .font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .detail-item label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+    .detail-item .value { font-size: 14px; color: var(--text); margin-top: 2px; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    code { background: var(--surface2); padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+    .dot-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo" onclick="showView('dashboardView')">
+      <span class="logo-icon">⬡</span>
+      Attractor
+    </div>
+    <button class="btn btn-primary" onclick="showCreateModal()">+ New Run</button>
+  </header>
+
+  <div class="app">
+    <aside>
+      <div class="sidebar-header">
+        <span class="sidebar-title">Pipelines</span>
+      </div>
+      <div class="sidebar-list" id="pipelineList">
+        <div class="empty" style="padding:30px 16px">
+          <div class="empty-text text-sm">No pipelines yet</div>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <!-- Dashboard view -->
+      <div id="dashboardView">
+        <div class="flex-between" style="margin-bottom:20px">
+          <div>
+            <h1 style="font-size:22px;font-weight:700">Dashboard</h1>
+            <p class="text-muted text-sm mt-8">Monitor and manage your pipeline runs</p>
+          </div>
+          <button class="btn btn-primary" onclick="showCreateModal()">+ New Run</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value" id="stat-total">0</div><div class="stat-label">Total Runs</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:var(--success)" id="stat-success">0</div><div class="stat-label">Successful</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:var(--fail)" id="stat-failed">0</div><div class="stat-label">Failed</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:var(--running)" id="stat-running">0</div><div class="stat-label">Running</div></div>
+          <div class="stat-card"><div class="stat-value" id="stat-tokens">0</div><div class="stat-label">Total Tokens</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Recent Runs</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Run ID</th><th>Pipeline</th><th>Model</th><th>Status</th>
+                  <th>Tokens</th><th>Duration</th><th>Started</th>
+                </tr>
+              </thead>
+              <tbody id="recentRunsTable">
+                <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">No runs yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pipeline detail view -->
+      <div id="pipelineView" style="display:none"></div>
+
+      <!-- Run detail view -->
+      <div id="runView" style="display:none"></div>
+    </main>
+  </div>
+
+  <!-- New Run Modal -->
+  <div class="modal-overlay hidden" id="createModal">
+    <div class="modal">
+      <div class="modal-title">New Run</div>
+      <div class="modal-subtitle">Describe what you want to accomplish. A pipeline will be generated automatically.</div>
+
+      <div class="form-group">
+        <label>What do you want to do?</label>
+        <textarea id="runPrompt" rows="6" placeholder="e.g. Research the latest breakthroughs in fusion energy and write a concise summary for a technical audience."></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('createModal')">Cancel</button>
+        <button class="btn btn-primary" id="createRunBtn" onclick="createRun()">Start Run</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Pipeline Modal -->
+  <div class="modal-overlay hidden" id="pipelineModal">
+    <div class="modal">
+      <div class="modal-title" id="pipelineModalTitle">Edit Pipeline</div>
+      <div class="modal-subtitle" style="margin-bottom:20px"></div>
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="pipelineName" placeholder="My Pipeline" />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" id="pipelineDesc" placeholder="Optional description" />
+      </div>
+      <div class="form-group">
+        <label>DOT Pipeline Definition</label>
+        <textarea id="pipelineDot" rows="14"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('pipelineModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="savePipeline()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="notif"></div>
+
+  <script>
+    // -------------------------------------------------------------------------
+    // State
+    // -------------------------------------------------------------------------
+    let pipelines = [];
+    let currentPipelineId = null;
+
+    // -------------------------------------------------------------------------
+    // Init
+    // -------------------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPipelines();
+      loadRecentRuns();
+      setInterval(() => {
+        if (document.getElementById('recentRunsTable').innerHTML.includes('running')) {
+          loadRecentRuns();
+        }
+        if (currentPipelineId) loadPipelineView(currentPipelineId);
+      }, 5000);
+    });
+
+    // -------------------------------------------------------------------------
+    // API
+    // -------------------------------------------------------------------------
+    async function api(method, path, body) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch('/api' + path, opts);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+    function notify(msg, type = 'success') {
+      const el = document.createElement('div');
+      el.className = `notif-item ${type}`;
+      el.textContent = msg;
+      document.getElementById('notif').appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }
+
+    function fmtDuration(ms) {
+      if (!ms) return '-';
+      if (ms < 1000) return ms + 'ms';
+      if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+      return Math.floor(ms / 60000) + 'm ' + Math.floor((ms % 60000) / 1000) + 's';
+    }
+
+    function fmtDate(d) {
+      if (!d) return '-';
+      return new Date(d).toLocaleString();
+    }
+
+    function fmtTokens(n) {
+      if (!n) return '0';
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toString();
+    }
+
+    function statusBadge(status) {
+      const map = {
+        success: 'badge-success', failed: 'badge-fail', fail: 'badge-fail',
+        running: 'badge-running', partial_success: 'badge-partial',
+        cancelled: 'badge-cancelled'
+      };
+      return `<span class="badge ${map[status] || 'badge-cancelled'}">${status}</span>`;
+    }
+
+    function escHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showView(id) {
+      ['dashboardView', 'pipelineView', 'runView'].forEach(v => {
+        document.getElementById(v).style.display = v === id ? '' : 'none';
+      });
+      if (id === 'dashboardView') {
+        currentPipelineId = null;
+        renderPipelineList();
+        loadRecentRuns();
+      }
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+      document.getElementById(id).removeAttribute('data-edit-id');
+    }
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(el => {
+      el.addEventListener('click', e => { if (e.target === el) el.classList.add('hidden'); });
+    });
+
+    // -------------------------------------------------------------------------
+    // Pipelines sidebar
+    // -------------------------------------------------------------------------
+    async function loadPipelines() {
+      try {
+        const data = await api('GET', '/pipelines');
+        pipelines = Array.isArray(data) ? data : (data.pipelines || []);
+        renderPipelineList();
+      } catch (e) { /* ignore */ }
+    }
+
+    function renderPipelineList() {
+      const el = document.getElementById('pipelineList');
+      if (!pipelines.length) {
+        el.innerHTML = '<div class="empty" style="padding:30px 16px"><div class="empty-text text-sm">No pipelines yet</div></div>';
+        return;
+      }
+      el.innerHTML = pipelines.map(p => `
+        <div class="sidebar-item ${p.id === currentPipelineId ? 'active' : ''}" onclick="loadPipelineView('${p.id}')">
+          <div class="sidebar-item-name">${escHtml(p.name)}</div>
+          <div class="sidebar-item-meta">${escHtml(p.model || 'no model')}</div>
+        </div>
+      `).join('');
+    }
+
+    async function loadPipelineView(pipelineId) {
+      currentPipelineId = pipelineId;
+      renderPipelineList();
+      showView('pipelineView');
+
+      const [pipelineRes, runsRes, statsRes] = await Promise.all([
+        api('GET', `/pipelines/${pipelineId}`),
+        api('GET', `/pipelines/${pipelineId}/runs`),
+        api('GET', `/pipelines/${pipelineId}/stats`).catch(() => null)
+      ]);
+
+      const p = pipelineRes;
+      const runs = Array.isArray(runsRes) ? runsRes : (runsRes.runs || []);
+      const stats = statsRes?.stats || {};
+
+      document.getElementById('pipelineView').innerHTML = `
+        <div class="flex-between" style="margin-bottom:20px">
+          <div>
+            <h1 style="font-size:22px;font-weight:700">${escHtml(p.name)}</h1>
+            ${p.description ? `<p class="text-muted text-sm mt-8">${escHtml(p.description)}</p>` : ''}
+          </div>
+          <div class="flex-row">
+            <button class="btn btn-ghost btn-sm" onclick="showEditPipelineModal('${p.id}')">Edit</button>
+            <button class="btn btn-primary btn-sm" onclick="showCreateModalFromPipeline('${p.id}')">+ Run</button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value">${stats.total_runs || 0}</div><div class="stat-label">Total Runs</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:var(--success)">${stats.success_runs || 0}</div><div class="stat-label">Successful</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:var(--fail)">${stats.failed_runs || 0}</div><div class="stat-label">Failed</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:var(--running)">${stats.running_runs || 0}</div><div class="stat-label">Running</div></div>
+          <div class="stat-card"><div class="stat-value">${fmtTokens(stats.total_tokens)}</div><div class="stat-label">Total Tokens</div></div>
+          <div class="stat-card"><div class="stat-value">${fmtDuration(stats.avg_duration_ms)}</div><div class="stat-label">Avg Duration</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">DOT Definition</div>
+          <textarea style="width:100%;min-height:140px;resize:vertical" readonly>${escHtml(p.dot_content || '')}</textarea>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Runs</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Run ID</th><th>Model</th><th>Status</th><th>Nodes</th><th>Tokens</th><th>Duration</th><th>Started</th></tr>
+              </thead>
+              <tbody>
+                ${runs.length === 0
+                  ? '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">No runs yet</td></tr>'
+                  : runs.map(r => `
+                    <tr onclick="loadRunView('${r.id}')">
+                      <td class="font-mono">${r.id.substring(0, 8)}...</td>
+                      <td class="font-mono" style="font-size:11px">${r.model || '-'}</td>
+                      <td>${statusBadge(r.status)}</td>
+                      <td>${r.node_count || 0}</td>
+                      <td>${fmtTokens(r.total_tokens)}</td>
+                      <td>${fmtDuration(r.duration_ms)}</td>
+                      <td>${fmtDate(r.start_time)}</td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // Run view
+    // -------------------------------------------------------------------------
+    async function loadRunView(runId) {
+      showView('runView');
+      document.getElementById('runView').innerHTML = '<div style="padding:40px;text-align:center"><div class="spinner"></div></div>';
+
+      try {
+        const data = await api('GET', `/runs/${runId}`);
+        const run = data;
+        const nodeLogs = data.node_logs || [];
+
+        document.getElementById('runView').innerHTML = `
+          <div class="flex-between" style="margin-bottom:20px">
+            <div>
+              <h1 style="font-size:22px;font-weight:700">Run Details</h1>
+              <div class="font-mono text-muted mt-8">${run.id}</div>
+            </div>
+            <div class="flex-row">
+              ${statusBadge(run.status)}
+              ${run.pipeline_id ? `<button class="btn btn-ghost btn-sm" onclick="loadPipelineView('${run.pipeline_id}')">← Pipeline</button>` : ''}
+            </div>
+          </div>
+
+          <div class="detail-grid" style="margin-bottom:20px">
+            <div class="detail-item"><label>Pipeline</label><div class="value">${escHtml(run.pipeline_name || run.pipeline_id)}</div></div>
+            <div class="detail-item"><label>Model</label><div class="value font-mono">${run.model || '-'}</div></div>
+            <div class="detail-item"><label>Status</label><div class="value">${statusBadge(run.status)}</div></div>
+            <div class="detail-item"><label>Duration</label><div class="value">${fmtDuration(run.duration_ms)}</div></div>
+            <div class="detail-item"><label>Started</label><div class="value">${fmtDate(run.start_time)}</div></div>
+            <div class="detail-item"><label>Finished</label><div class="value">${fmtDate(run.end_time)}</div></div>
+            <div class="detail-item"><label>Prompt Tokens</label><div class="value">${fmtTokens(run.total_prompt_tokens)}</div></div>
+            <div class="detail-item"><label>Completion Tokens</label><div class="value">${fmtTokens(run.total_completion_tokens)}</div></div>
+            <div class="detail-item"><label>Total Tokens</label><div class="value">${fmtTokens(run.total_tokens)}</div></div>
+            <div class="detail-item"><label>Nodes Executed</label><div class="value">${run.node_count || 0}</div></div>
+            ${run.graph_goal ? `<div class="detail-item" style="grid-column:1/-1"><label>Goal</label><div class="value">${escHtml(run.graph_goal)}</div></div>` : ''}
+            ${run.error_message ? `<div class="detail-item" style="grid-column:1/-1"><label>Error</label><div class="value" style="color:var(--fail)">${escHtml(run.error_message)}</div></div>` : ''}
+          </div>
+
+          <div class="card">
+            <div class="card-title">Node Execution Timeline</div>
+            ${nodeLogs.length === 0 ? '<div class="empty"><div class="empty-text">No node logs available</div></div>' : `
+              <div class="timeline">
+                ${nodeLogs.map(nl => `
+                  <div class="timeline-item ${nl.status}">
+                    <div>
+                      <div class="timeline-node-id">${escHtml(nl.node_id)}</div>
+                      <div style="margin-top:2px">${statusBadge(nl.status)}</div>
+                      ${nl.attempt_num > 1 ? `<div class="text-sm text-muted mt-8">attempt ${nl.attempt_num}</div>` : ''}
+                    </div>
+                    <div>
+                      <div class="timeline-node-label">${escHtml(nl.node_label || nl.node_id)}</div>
+                      <div class="timeline-meta">
+                        <span>${nl.node_type}</span>
+                        ${nl.model ? `<span>${nl.model}</span>` : ''}
+                        ${nl.total_tokens ? `<span>${fmtTokens(nl.total_tokens)} tokens</span>` : ''}
+                        ${nl.notes ? `<span title="${escHtml(nl.notes)}">${escHtml(nl.notes.substring(0, 60))}${nl.notes.length > 60 ? '...' : ''}</span>` : ''}
+                        ${nl.failure_reason ? `<span style="color:var(--fail)">${escHtml(nl.failure_reason.substring(0, 80))}</span>` : ''}
+                      </div>
+                    </div>
+                    <div class="timeline-duration">${fmtDuration(nl.duration_ms)}</div>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+        `;
+      } catch (e) {
+        document.getElementById('runView').innerHTML = `<div style="padding:40px;text-align:center;color:var(--fail)">${e.message}</div>`;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Dashboard
+    // -------------------------------------------------------------------------
+    async function loadRecentRuns() {
+      try {
+        const data = await api('GET', '/runs?limit=20');
+        const runs = Array.isArray(data) ? data : (data.runs || []);
+        let total = 0, succ = 0, fail = 0, running = 0, tokens = 0;
+        runs.forEach(r => {
+          total++;
+          if (r.status === 'success') succ++;
+          else if (r.status === 'failed') fail++;
+          else if (r.status === 'running') running++;
+          tokens += r.total_tokens || 0;
+        });
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-success').textContent = succ;
+        document.getElementById('stat-failed').textContent = fail;
+        document.getElementById('stat-running').textContent = running;
+        document.getElementById('stat-tokens').textContent = fmtTokens(tokens);
+
+        const tbody = document.getElementById('recentRunsTable');
+        if (!runs.length) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">No runs yet. Click "+ New Run" to get started.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = runs.map(r => `
+          <tr onclick="loadRunView('${r.id}')">
+            <td class="font-mono">${r.id.substring(0, 8)}...</td>
+            <td>${escHtml(r.pipeline_name || r.pipeline_id || '-')}</td>
+            <td class="font-mono" style="font-size:11px">${r.model || '-'}</td>
+            <td>${statusBadge(r.status)}</td>
+            <td>${fmtTokens(r.total_tokens)}</td>
+            <td>${fmtDuration(r.duration_ms)}</td>
+            <td>${fmtDate(r.start_time)}</td>
+          </tr>
+        `).join('');
+      } catch (e) { /* ignore */ }
+    }
+
+    // -------------------------------------------------------------------------
+    // New Run modal
+    // -------------------------------------------------------------------------
+    function showCreateModal() {
+      document.getElementById('runPrompt').value = '';
+      document.getElementById('createModal').classList.remove('hidden');
+      setTimeout(() => document.getElementById('runPrompt').focus(), 50);
+    }
+
+    // Pre-fill prompt from an existing pipeline's goal, then open the modal
+    async function showCreateModalFromPipeline(pipelineId) {
+      showCreateModal();
+      try {
+        const data = await api('GET', `/pipelines/${pipelineId}`);
+        const p = data.pipeline || data;
+        const goalMatch = p.dot_content && p.dot_content.match(/goal\s*=\s*"([^"]*)"/);
+        if (goalMatch) document.getElementById('runPrompt').value = goalMatch[1];
+      } catch (e) { /* ignore */ }
+    }
+
+    async function createRun() {
+      const prompt = document.getElementById('runPrompt').value.trim();
+      if (!prompt) { notify('Enter a prompt to describe what you want to do', 'error'); return; }
+
+      const btn = document.getElementById('createRunBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Generating pipeline...';
+
+      try {
+        const data = await api('POST', '/runs', { prompt, name: 'generated' });
+        closeModal('createModal');
+        notify('Run started: ' + (data.id || '').substring(0, 8) + '...', 'success');
+        loadRecentRuns();
+        loadPipelines();
+        setTimeout(() => loadRunView(data.id), 500);
+      } catch (e) {
+        notify('Failed to start run: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Start Run';
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Edit pipeline modal
+    // -------------------------------------------------------------------------
+    async function showEditPipelineModal(pipelineId) {
+      try {
+        const data = await api('GET', `/pipelines/${pipelineId}`);
+        const p = data.pipeline || data;
+        document.getElementById('pipelineName').value = p.name;
+        document.getElementById('pipelineDesc').value = p.description || '';
+        document.getElementById('pipelineDot').value = p.dot_content || '';
+        document.getElementById('pipelineModal').setAttribute('data-edit-id', pipelineId);
+        document.getElementById('pipelineModal').classList.remove('hidden');
+      } catch (e) {
+        notify('Failed to load pipeline: ' + e.message, 'error');
+      }
+    }
+
+    async function savePipeline() {
+      const name = document.getElementById('pipelineName').value.trim();
+      const desc = document.getElementById('pipelineDesc').value.trim();
+      const dot  = document.getElementById('pipelineDot').value.trim();
+      if (!name) { notify('Name is required', 'error'); return; }
+      if (!dot)  { notify('DOT definition is required', 'error'); return; }
+
+      const editId = document.getElementById('pipelineModal').getAttribute('data-edit-id');
+      try {
+        if (editId) {
+          await api('PUT', `/pipelines/${editId}`, { name, description: desc, dot_content: dot });
+          notify('Pipeline updated', 'success');
+          closeModal('pipelineModal');
+          loadPipelines();
+          loadPipelineView(editId);
+        }
+      } catch (e) {
+        notify('Failed: ' + e.message, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

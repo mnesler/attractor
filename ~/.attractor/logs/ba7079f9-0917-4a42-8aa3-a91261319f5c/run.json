@@ -1,0 +1,73 @@
+{
+  "run_id": "ba7079f9-0917-4a42-8aa3-a91261319f5c",
+  "pipeline_id": "dd8b69ff-ee8b-4fdb-8a1a-7903fd0afe06",
+  "graph_id": "scale_attactor",
+  "graph_goal": "Research how to run Attractor at scale",
+  "model": "openai/gpt-4o",
+  "status": "success",
+  "start_time": "2026-03-03T22:34:17.533261885-05:00",
+  "end_time": "2026-03-03T22:34:39.023277784-05:00",
+  "duration_ms": 21490,
+  "node_logs": [
+    {
+      "node_id": "start",
+      "node_label": "Start",
+      "node_type": "start",
+      "status": "success",
+      "start_time": "2026-03-03T22:34:17.53352809-05:00",
+      "end_time": "2026-03-03T22:34:17.533532791-05:00",
+      "duration_ms": 0,
+      "attempt_num": 1,
+      "notes": "Pipeline started"
+    },
+    {
+      "node_id": "research",
+      "node_label": "Research",
+      "node_type": "codergen",
+      "status": "success",
+      "start_time": "2026-03-03T22:34:17.534220642-05:00",
+      "end_time": "2026-03-03T22:34:27.65658228-05:00",
+      "duration_ms": 10122,
+      "attempt_num": 1,
+      "notes": "Stage completed: research (model=openai/gpt-4o, tokens=741, duration=10.121s)",
+      "model": "openai/gpt-4o",
+      "prompt_tokens": 50,
+      "completion_tokens": 691,
+      "total_tokens": 741
+    },
+    {
+      "node_id": "analyze",
+      "node_label": "Analyze",
+      "node_type": "codergen",
+      "status": "success",
+      "start_time": "2026-03-03T22:34:27.657143041-05:00",
+      "end_time": "2026-03-03T22:34:34.721766068-05:00",
+      "duration_ms": 7064,
+      "attempt_num": 1,
+      "notes": "Stage completed: analyze (model=openai/gpt-4o, tokens=594, duration=7.064s)",
+      "model": "openai/gpt-4o",
+      "prompt_tokens": 80,
+      "completion_tokens": 514,
+      "total_tokens": 594
+    },
+    {
+      "node_id": "summarize",
+      "node_label": "Summarize",
+      "node_type": "codergen",
+      "status": "success",
+      "start_time": "2026-03-03T22:34:34.722444682-05:00",
+      "end_time": "2026-03-03T22:34:39.022556699-05:00",
+      "duration_ms": 4300,
+      "attempt_num": 1,
+      "notes": "Stage completed: summarize (model=openai/gpt-4o, tokens=391, duration=4.299s)",
+      "model": "openai/gpt-4o",
+      "prompt_tokens": 87,
+      "completion_tokens": 304,
+      "total_tokens": 391
+    }
+  ],
+  "total_prompt_tokens": 217,
+  "total_completion_tokens": 1509,
+  "total_tokens": 1726,
+  "logs_root": "~/.attractor/logs/ba7079f9-0917-4a42-8aa3-a91261319f5c"
+}

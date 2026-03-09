@@ -1,0 +1,16 @@
+// Simple two-stage pipeline: research a topic, then summarize.
+digraph simple_research {
+    graph [
+        goal = "Research the topic of quantum computing and produce a brief summary"
+        default_max_retry = 1
+    ]
+
+    start  [shape=Mdiamond, label="Start"]
+    research [shape=box, label="Research", prompt="Research the following topic thoroughly: $goal\n\nProvide key facts, current state of the art, and notable developments."]
+    summarize [shape=box, label="Summarize", prompt="Based on the research below, write a concise 3-paragraph executive summary for a technical audience.\n\nPrevious research: {{last_response}}"]
+    exit   [shape=Msquare, label="End"]
+
+    start     -> research
+    research  -> summarize
+    summarize -> exit
+}

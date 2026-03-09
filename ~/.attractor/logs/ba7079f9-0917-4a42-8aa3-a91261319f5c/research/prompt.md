@@ -1,0 +1,1 @@
+Research how to run Attractor at scale. Include best practices, infrastructure requirements, and potential challenges.

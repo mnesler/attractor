@@ -1,0 +1,24 @@
+// Code review pipeline: analyze code, identify issues, suggest fixes.
+digraph code_review {
+    graph [
+        goal = "Review the provided code for correctness, style, and potential bugs"
+        default_max_retry = 2
+    ]
+
+    start    [shape=Mdiamond, label="Start"]
+    analyze  [shape=box, label="Analyze Code",
+              prompt="Analyze the following code carefully. Identify: bugs, security issues, style problems, performance concerns, and missing error handling.\n\nGoal: $goal\n\nCode to review:\n(paste your code into context before running)"]
+    grade    [shape=diamond, label="Quality Gate"]
+    fix      [shape=box, label="Suggest Fixes",
+              prompt="Based on this code analysis, provide specific, actionable fix suggestions with code examples for each issue identified.\n\nAnalysis: {{last_response}}"]
+    approve  [shape=box, label="Write Approval",
+              prompt="Write a brief approval note confirming the code meets quality standards.\n\nAnalysis: {{last_response}}"]
+    exit     [shape=Msquare, label="End"]
+
+    start   -> analyze
+    analyze -> grade
+    grade   -> fix     [label="needs_fixes", condition="outcome=success"]
+    grade   -> approve [label="looks_good",  condition="outcome=success"]
+    fix     -> exit
+    approve -> exit
+}
