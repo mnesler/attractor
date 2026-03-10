@@ -103,6 +103,8 @@
     .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
     .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
     .btn-ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+    .btn-danger { background: transparent; color: #fca5a5; border: 1px solid #7f1d1d; }
+    .btn-danger:hover:not(:disabled) { background: rgba(127,29,29,0.2); color: #fca5a5; }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
     /* Badges */
     .badge {
@@ -213,6 +215,53 @@
     .timeline-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 8px; }
     .timeline-meta span { display: flex; align-items: center; gap: 4px; }
     .timeline-duration { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+    /* Node drill-down */
+    .timeline-item { cursor: pointer; }
+    .timeline-item:hover { border-color: var(--accent); }
+    .node-icon { font-size: 15px; line-height: 1; }
+    .chevron { display: inline-block; font-size: 10px; color: var(--text-dim); margin-left: 4px; transition: transform 0.18s; user-select: none; }
+    .chevron.open { transform: rotate(90deg); }
+    .node-detail {
+      display: none;
+      grid-column: 1 / -1;
+      border-top: 1px solid var(--border);
+      margin-top: 8px;
+      padding-top: 12px;
+    }
+    .node-detail.open { display: block; }
+    .node-io-block { margin-bottom: 12px; }
+    .node-io-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .node-io-pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 360px;
+      overflow-y: auto;
+      margin: 0;
+    }
+    .node-detail-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .node-detail-meta strong { color: var(--text); }
     /* Empty */
     .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
     .empty-text { font-size: 15px; }
@@ -277,7 +326,6 @@
             <h1 style="font-size:22px;font-weight:700">Dashboard</h1>
             <p class="text-muted text-sm mt-8">Monitor and manage your pipeline runs</p>
           </div>
-          <button class="btn btn-primary" onclick="showCreateModal()">+ New Run</button>
         </div>
 
         <div class="stats-grid">
@@ -364,6 +412,7 @@
     // -------------------------------------------------------------------------
     let pipelines = [];
     let currentPipelineId = null;
+    let currentView = 'dashboard'; // 'dashboard' | 'pipeline' | 'run'
 
     // -------------------------------------------------------------------------
     // Init
@@ -372,10 +421,13 @@
       loadPipelines();
       loadRecentRuns();
       setInterval(() => {
-        if (document.getElementById('recentRunsTable').innerHTML.includes('running')) {
-          loadRecentRuns();
+        if (currentView === 'dashboard') {
+          if (document.getElementById('recentRunsTable').innerHTML.includes('running')) {
+            loadRecentRuns();
+          }
+        } else if (currentView === 'pipeline' && currentPipelineId) {
+          loadPipelineView(currentPipelineId);
         }
-        if (currentPipelineId) loadPipelineView(currentPipelineId);
       }, 5000);
     });
 
@@ -386,6 +438,10 @@
       const opts = { method, headers: { 'Content-Type': 'application/json' } };
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch('/api' + path, opts);
+      if (res.status === 204 || res.headers.get('content-length') === '0') {
+        if (!res.ok) throw new Error('Request failed');
+        return null;
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
       return data;
@@ -439,6 +495,8 @@
       ['dashboardView', 'pipelineView', 'runView'].forEach(v => {
         document.getElementById(v).style.display = v === id ? '' : 'none';
       });
+      const viewMap = { dashboardView: 'dashboard', pipelineView: 'pipeline', runView: 'run' };
+      currentView = viewMap[id] || 'dashboard';
       if (id === 'dashboardView') {
         currentPipelineId = null;
         renderPipelineList();
@@ -504,7 +562,7 @@
           </div>
           <div class="flex-row">
             <button class="btn btn-ghost btn-sm" onclick="showEditPipelineModal('${p.id}')">Edit</button>
-            <button class="btn btn-primary btn-sm" onclick="showCreateModalFromPipeline('${p.id}')">+ Run</button>
+            <button class="btn btn-primary btn-sm" onclick="reRunPipeline('${p.id}')">↺ Re-run</button>
           </div>
         </div>
 
@@ -570,6 +628,7 @@
             </div>
             <div class="flex-row">
               ${statusBadge(run.status)}
+              ${run.status === 'running' ? `<button class="btn btn-danger btn-sm" id="cancelRunBtn" onclick="cancelRun('${run.id}')">Cancel Run</button>` : ''}
               ${run.pipeline_id ? `<button class="btn btn-ghost btn-sm" onclick="loadPipelineView('${run.pipeline_id}')">← Pipeline</button>` : ''}
             </div>
           </div>
@@ -594,23 +653,40 @@
             ${nodeLogs.length === 0 ? '<div class="empty"><div class="empty-text">No node logs available</div></div>' : `
               <div class="timeline">
                 ${nodeLogs.map(nl => `
-                  <div class="timeline-item ${nl.status}">
+                  <div class="timeline-item ${nl.status}" onclick="toggleNodeDetail(event, this)">
                     <div>
                       <div class="timeline-node-id">${escHtml(nl.node_id)}</div>
                       <div style="margin-top:2px">${statusBadge(nl.status)}</div>
                       ${nl.attempt_num > 1 ? `<div class="text-sm text-muted mt-8">attempt ${nl.attempt_num}</div>` : ''}
                     </div>
                     <div>
-                      <div class="timeline-node-label">${escHtml(nl.node_label || nl.node_id)}</div>
+                      <div class="timeline-node-label">
+                        <span class="node-icon">${nodeTypeIcon(nl.node_type)}</span>
+                        ${escHtml(nl.node_label || nl.node_id)}
+                        <span class="chevron">▶</span>
+                      </div>
                       <div class="timeline-meta">
                         <span>${nl.node_type}</span>
-                        ${nl.model ? `<span>${nl.model}</span>` : ''}
+                        ${nl.model ? `<span>${escHtml(nl.model)}</span>` : ''}
                         ${nl.total_tokens ? `<span>${fmtTokens(nl.total_tokens)} tokens</span>` : ''}
-                        ${nl.notes ? `<span title="${escHtml(nl.notes)}">${escHtml(nl.notes.substring(0, 60))}${nl.notes.length > 60 ? '...' : ''}</span>` : ''}
                         ${nl.failure_reason ? `<span style="color:var(--fail)">${escHtml(nl.failure_reason.substring(0, 80))}</span>` : ''}
                       </div>
                     </div>
                     <div class="timeline-duration">${fmtDuration(nl.duration_ms)}</div>
+                    <div class="node-detail">
+                      <div class="node-detail-meta">
+                        ${nl.model ? `<span>Model: <strong>${escHtml(nl.model)}</strong></span>` : ''}
+                        ${nl.prompt_tokens ? `<span>Prompt tokens: <strong>${nl.prompt_tokens}</strong></span>` : ''}
+                        ${nl.completion_tokens ? `<span>Completion tokens: <strong>${nl.completion_tokens}</strong></span>` : ''}
+                        ${nl.total_tokens ? `<span>Total tokens: <strong>${nl.total_tokens}</strong></span>` : ''}
+                        ${nl.start_time ? `<span>Start: <strong>${fmtDate(nl.start_time)}</strong></span>` : ''}
+                        ${nl.end_time ? `<span>End: <strong>${fmtDate(nl.end_time)}</strong></span>` : ''}
+                      </div>
+                      ${nl.notes ? `<div class="node-io-block"><div class="node-io-label">Notes</div><pre class="node-io-pre">${escHtml(nl.notes)}</pre></div>` : ''}
+                      ${nl.failure_reason ? `<div class="node-io-block"><div class="node-io-label" style="color:var(--fail)">Failure Reason</div><pre class="node-io-pre" style="border-color:#7f1d1d;color:#fca5a5">${escHtml(nl.failure_reason)}</pre></div>` : ''}
+                      ${nl.input_text ? `<div class="node-io-block"><div class="node-io-label">Input</div><pre class="node-io-pre">${escHtml(nl.input_text)}</pre></div>` : ''}
+                      ${nl.output_text ? `<div class="node-io-block"><div class="node-io-label">Output</div><pre class="node-io-pre">${escHtml(nl.output_text)}</pre></div>` : ''}
+                    </div>
                   </div>
                 `).join('')}
               </div>
@@ -671,6 +747,21 @@
       setTimeout(() => document.getElementById('runPrompt').focus(), 50);
     }
 
+    async function reRunPipeline(pipelineId) {
+      try {
+        const data = await api('GET', `/pipelines/${pipelineId}`);
+        const p = data.pipeline || data;
+        const goalMatch = p.dot_content && p.dot_content.match(/goal\s*=\s*"([^"]*)"/);
+        const prompt = goalMatch ? goalMatch[1] : p.name;
+        const run = await api('POST', '/runs', { prompt, name: 'generated' });
+        notify('Re-run started: ' + (run.id || '').substring(0, 8) + '...', 'success');
+        loadPipelines();
+        setTimeout(() => loadRunView(run.id), 500);
+      } catch (e) {
+        notify('Failed to re-run: ' + e.message, 'error');
+      }
+    }
+
     // Pre-fill prompt from an existing pipeline's goal, then open the modal
     async function showCreateModalFromPipeline(pipelineId) {
       showCreateModal();
@@ -702,6 +793,45 @@
       } finally {
         btn.disabled = false;
         btn.innerHTML = 'Start Run';
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Node drill-down
+    // -------------------------------------------------------------------------
+    function nodeTypeIcon(type) {
+      const icons = {
+        'start': '◇', 'exit': '⬛', 'codergen': '▭',
+        'conditional': '◆', 'wait.human': '⬡',
+        'parallel': '⫸', 'parallel.fan_in': '⊙',
+        'tool': '⚙', 'stack.manager_loop': '⌂'
+      };
+      return icons[type] || '●';
+    }
+
+    function toggleNodeDetail(event, el) {
+      // Don't fire if a button inside was clicked
+      if (event.target.closest('button')) return;
+      const detail = el.querySelector('.node-detail');
+      const chevron = el.querySelector('.chevron');
+      if (!detail) return;
+      const isOpen = detail.classList.toggle('open');
+      if (chevron) chevron.classList.toggle('open', isOpen);
+    }
+
+    // -------------------------------------------------------------------------
+    // Cancel run
+    // -------------------------------------------------------------------------
+    async function cancelRun(runId) {
+      const btn = document.getElementById('cancelRunBtn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+      try {
+        await api('DELETE', '/runs/' + runId);
+        notify('Run cancelled', 'success');
+        loadRunView(runId);
+      } catch (e) {
+        notify('Failed to cancel run: ' + e.message, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Cancel Run'; }
       }
     }
 

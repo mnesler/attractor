@@ -1,1 +1,0 @@
-The addition operation successfully completed, and the calculated sum has been stored in the tool's output.

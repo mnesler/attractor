@@ -1,0 +1,19 @@
+// Smoke-test pipeline: run a shell command and summarise the output.
+digraph smoke_test {
+    graph [
+        goal = "Run a quick smoke test to verify Attractor is working"
+        default_max_retry = 1
+    ]
+
+    start  [shape=Mdiamond, label="Start"]
+    check  [shape=parallelogram, label="System Check",
+            type="tool",
+            tool_command="echo 'Hello from Attractor! The date is:' && date && echo 'Hostname:' && hostname"]
+    summarise [shape=box, label="Summarise",
+               prompt="You just ran a system check tool. Summarise the output in one sentence confirming Attractor is working."]
+    exit   [shape=Msquare, label="End"]
+
+    start -> check
+    check -> summarise
+    summarise -> exit
+}

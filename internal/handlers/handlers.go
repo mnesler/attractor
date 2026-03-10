@@ -124,6 +124,8 @@ func (h *CodergenHandler) Execute(ctx context.Context, node *parser.Node, pipeCt
 			ContextUpdates: map[string]string{
 				"last_stage":    node.ID,
 				"last_response": truncate(responseText, 200),
+				"input_text":    prompt,
+				"output_text":   responseText,
 			},
 		}, nil
 	}
@@ -166,6 +168,9 @@ func (h *CodergenHandler) Execute(ctx context.Context, node *parser.Node, pipeCt
 		return &pctx.Outcome{
 			Status:        pctx.StatusFail,
 			FailureReason: fmt.Sprintf("LLM call failed: %v", err),
+			ContextUpdates: map[string]string{
+				"input_text": prompt,
+			},
 		}, nil
 	}
 
@@ -187,6 +192,8 @@ func (h *CodergenHandler) Execute(ctx context.Context, node *parser.Node, pipeCt
 			"last_tokens_prompt":       fmt.Sprintf("%d", resp.Usage.PromptTokens),
 			"last_tokens_completion":   fmt.Sprintf("%d", resp.Usage.CompletionTokens),
 			"last_tokens_total":        fmt.Sprintf("%d", resp.Usage.TotalTokens),
+			"input_text":               prompt,
+			"output_text":              responseText,
 		},
 	}, nil
 }
@@ -308,6 +315,10 @@ func (h *ToolHandler) Execute(ctx context.Context, node *parser.Node, pipeCtx *p
 		return &pctx.Outcome{
 			Status:        pctx.StatusFail,
 			FailureReason: fmt.Sprintf("Command failed: %v\n%s", err, string(output)),
+			ContextUpdates: map[string]string{
+				"input_text":  command,
+				"output_text": string(output),
+			},
 		}, nil
 	}
 
@@ -317,6 +328,8 @@ func (h *ToolHandler) Execute(ctx context.Context, node *parser.Node, pipeCtx *p
 		Notes:  "Tool completed: " + command,
 		ContextUpdates: map[string]string{
 			"tool.output": truncate(string(output), 500),
+			"input_text":  command,
+			"output_text": string(output),
 		},
 	}, nil
 }

@@ -1,0 +1,61 @@
+// Exercise pipeline: touches every node type once.
+// Goal: gather live system info with a tool, then route and process it
+// through codergen, parallel, fan_in, conditional, and stack.manager_loop nodes.
+digraph exercise_all_nodes {
+    graph [
+        goal = "Gather live system information and produce a structured health and security report"
+        default_max_retry = 1
+    ]
+
+    start   [shape=Mdiamond, label="Start"]
+
+    // tool — run a shell command to collect raw system info
+    check   [shape=parallelogram, label="System Check",
+             type="tool",
+             tool_command="echo '=== OS ===' && uname -a && echo '=== DATE ===' && date && echo '=== DISK ===' && df -h / && echo '=== MEMORY ===' && free -h 2>/dev/null || vm_stat"]
+
+    // codergen — summarize the raw tool output
+    analyze [shape=box, label="Analyze System Info",
+             prompt="You have just run a system information check. The raw output is available in context.\n\nGoal: $goal\n\nWrite a concise structured summary of the system: OS, date/time, disk usage, and memory. Use plain prose, no code blocks."]
+
+    // parallel fan-out — two concurrent LLM tasks
+    branch  [shape=component, label="Parallel Analysis"]
+
+    security [shape=box, label="Security Observations",
+              prompt="Based on the system info summary below, list any notable security observations (e.g. OS version age, unusual mounts, high disk usage that could indicate log bloat).\n\nSummary: {{last_response}}"]
+
+    health   [shape=box, label="Health Observations",
+              prompt="Based on the system info summary below, assess the overall system health: disk headroom, memory availability, and any resource concerns.\n\nSummary: {{last_response}}"]
+
+    // fan_in — collect both parallel branches
+    merge   [shape=tripleoctagon, label="Merge Results"]
+
+    // conditional — route based on outcome
+    gate    [shape=diamond, label="Quality Gate"]
+
+    flag    [shape=box, label="Write Flag Note",
+             prompt="The analysis flagged some concerns. Write a short, clear warning note summarising the issues found in the security and health observations.\n\nContext: {{last_response}}"]
+
+    approve [shape=box, label="Write Approval Note",
+             prompt="The system looks healthy. Write a brief, confident clean bill of health based on the security and health observations.\n\nContext: {{last_response}}"]
+
+    // stack.manager_loop — stubbed no-op, included to exercise the node type
+    manager [shape=house, label="Manager Loop"]
+
+    exit    [shape=Msquare, label="End"]
+
+    // Edges
+    start   -> check
+    check   -> analyze
+    analyze -> branch
+    branch  -> security
+    branch  -> health
+    security -> merge
+    health   -> merge
+    merge   -> gate
+    gate    -> flag    [label="flag",       condition="outcome=success"]
+    gate    -> approve [label="looks_good", condition="outcome=success"]
+    flag    -> manager
+    approve -> manager
+    manager -> exit
+}

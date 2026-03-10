@@ -1,0 +1,1 @@
+Perform a quick smoke test to verify that Attractor is functioning correctly. List any issues found.

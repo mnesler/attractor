@@ -1,0 +1,58 @@
+{
+  "run_id": "80e7fde2-ed73-4aa6-a71c-dd88f1b2bd34",
+  "pipeline_id": "",
+  "graph_id": "smoke_test",
+  "graph_goal": "Run a quick smoke test to verify Attractor is working",
+  "model": "openai/gpt-4o",
+  "status": "success",
+  "start_time": "2026-03-09T13:44:51.733796505-04:00",
+  "end_time": "2026-03-09T13:44:52.974352954-04:00",
+  "duration_ms": 1240,
+  "node_logs": [
+    {
+      "node_id": "start",
+      "node_label": "Start",
+      "node_type": "start",
+      "status": "success",
+      "start_time": "2026-03-09T13:44:51.733920639-04:00",
+      "end_time": "2026-03-09T13:44:51.733922729-04:00",
+      "duration_ms": 0,
+      "attempt_num": 1,
+      "notes": "Pipeline started"
+    },
+    {
+      "node_id": "check",
+      "node_label": "System Check",
+      "node_type": "tool",
+      "status": "success",
+      "start_time": "2026-03-09T13:44:51.734302203-04:00",
+      "end_time": "2026-03-09T13:44:51.738490071-04:00",
+      "duration_ms": 4,
+      "attempt_num": 1,
+      "notes": "Tool completed: echo 'Hello from Attractor! The date is:' \u0026\u0026 date \u0026\u0026 echo 'Hostname:' \u0026\u0026 hostname",
+      "input_text": "echo 'Hello from Attractor! The date is:' \u0026\u0026 date \u0026\u0026 echo 'Hostname:' \u0026\u0026 hostname",
+      "output_text": "Hello from Attractor! The date is:\nMon Mar  9 01:44:51 PM EDT 2026\nHostname:\nfedora\n"
+    },
+    {
+      "node_id": "summarise",
+      "node_label": "Summarise",
+      "node_type": "codergen",
+      "status": "success",
+      "start_time": "2026-03-09T13:44:51.738773355-04:00",
+      "end_time": "2026-03-09T13:44:52.973450856-04:00",
+      "duration_ms": 1234,
+      "attempt_num": 1,
+      "notes": "Stage completed: summarise (model=openai/gpt-4o, tokens=67, duration=1.234s)",
+      "model": "openai/gpt-4o",
+      "prompt_tokens": 52,
+      "completion_tokens": 15,
+      "total_tokens": 67,
+      "input_text": "You just ran a system check tool. Summarise the output in one sentence confirming Attractor is working.",
+      "output_text": "The system check tool confirmed that Attractor is functioning properly without any issues."
+    }
+  ],
+  "total_prompt_tokens": 52,
+  "total_completion_tokens": 15,
+  "total_tokens": 67,
+  "logs_root": "~/.attractor/logs/80e7fde2-ed73-4aa6-a71c-dd88f1b2bd34"
+}

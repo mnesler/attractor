@@ -172,10 +172,12 @@ func runCmd() *cobra.Command {
 			if outputJSON {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
-				return enc.Encode(runLog)
+				if err := enc.Encode(runLog); err != nil {
+					return err
+				}
+			} else {
+				printRunSummary(runLog)
 			}
-
-			printRunSummary(runLog)
 
 			// Update DB
 			if database != nil {
@@ -209,6 +211,8 @@ func runCmd() *cobra.Command {
 						TotalTokens:      nl.TotalTokens,
 						Notes:            nl.Notes,
 						FailureReason:    nl.FailureReason,
+						InputText:        nl.InputText,
+						OutputText:       nl.OutputText,
 					}
 					_ = database.InsertNodeLog(dbNL)
 				}

@@ -468,6 +468,8 @@ func (s *Server) executeRun(runID, pipelineID string, graph *parser.Graph, model
 			TotalTokens:      nl.TotalTokens,
 			Notes:            nl.Notes,
 			FailureReason:    nl.FailureReason,
+			InputText:        nl.InputText,
+			OutputText:       nl.OutputText,
 		}
 		if dbErr := s.db.InsertNodeLog(dbNL); dbErr != nil {
 			log.Printf("failed to insert node log for run %s node %s: %v", runID, nl.NodeID, dbErr)
@@ -504,28 +506,55 @@ func (s *Server) handleRunByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		run, err := s.db.GetRun(runID)
+		if err != nil {
+			jsonError(w, "db error", http.StatusInternalServerError)
+			return
+		}
+		if run == nil {
+			jsonError(w, "run not found", http.StatusNotFound)
+			return
+		}
+		// Attach node logs inline
+		type runWithNodes struct {
+			*db.Run
+			NodeLogs interface{} `json:"node_logs"`
+		}
+		nodeLogs, _ := s.db.GetNodeLogs(runID)
+		jsonOK(w, runWithNodes{Run: run, NodeLogs: nodeLogs})
+
+	case http.MethodDelete:
+		// Check the run exists first so we can return the right error code.
+		run, err := s.db.GetRun(runID)
+		if err != nil {
+			jsonError(w, "db error", http.StatusInternalServerError)
+			return
+		}
+		if run == nil {
+			jsonError(w, "run not found", http.StatusNotFound)
+			return
+		}
+		if run.Status != "running" {
+			jsonError(w, "run is not in running state", http.StatusConflict)
+			return
+		}
+		ok, err := s.db.CancelRun(runID)
+		if err != nil {
+			jsonError(w, "failed to cancel run", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			// Race: another request beat us to it
+			jsonError(w, "run could not be cancelled", http.StatusConflict)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+
+	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
-
-	run, err := s.db.GetRun(runID)
-	if err != nil {
-		jsonError(w, "db error", http.StatusInternalServerError)
-		return
-	}
-	if run == nil {
-		jsonError(w, "run not found", http.StatusNotFound)
-		return
-	}
-
-	// Attach node logs inline
-	type runWithNodes struct {
-		*db.Run
-		NodeLogs interface{} `json:"node_logs"`
-	}
-	nodeLogs, _ := s.db.GetNodeLogs(runID)
-	jsonOK(w, runWithNodes{Run: run, NodeLogs: nodeLogs})
 }
 
 // ---------- Models ----------

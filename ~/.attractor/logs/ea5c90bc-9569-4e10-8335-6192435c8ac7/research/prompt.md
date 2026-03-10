@@ -1,0 +1,1 @@
+Research the feasibility of using coal as fuel for a rocket ship to Mars and back. Consider propulsion methods, energy requirements, and environmental impact.

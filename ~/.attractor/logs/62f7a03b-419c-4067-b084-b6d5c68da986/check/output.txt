@@ -1,0 +1,11 @@
+=== OS ===
+Linux fedora 6.18.13-200.fc43.x86_64 #1 SMP PREEMPT_DYNAMIC Thu Feb 19 19:54:01 UTC 2026 x86_64 GNU/Linux
+=== DATE ===
+Mon Mar  9 08:02:20 PM EDT 2026
+=== DISK ===
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p3  236G  8.1G  227G   4% /
+=== MEMORY ===
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       5.6Gi       3.7Gi       1.1Gi       6.7Gi       9.6Gi
+Swap:          8.0Gi          0B       8.0Gi

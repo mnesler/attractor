@@ -1,1 +1,0 @@
-The square root of 5 is approximately 2.236.

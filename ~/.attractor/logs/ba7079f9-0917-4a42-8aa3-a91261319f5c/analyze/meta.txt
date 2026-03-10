@@ -1,5 +1,0 @@
-Model: openai/gpt-4o
-Input tokens: 80
-Output tokens: 514
-Total tokens: 594
-Duration: 7.064s

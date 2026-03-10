@@ -517,6 +517,65 @@ func TestGetRunByID_WrongMethod(t *testing.T) {
 	}
 }
 
+// ---------- DELETE /api/runs/{id} ----------
+
+func TestCancelRun_Success(t *testing.T) {
+	srv := newTestServer(t)
+	now := time.Now()
+	run := &db.Run{
+		ID:         "run-cancel-ok",
+		PipelineID: "pipe-1",
+		Status:     "running",
+		StartTime:  now,
+	}
+	if err := srv.db.CreateRun(run); err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+
+	rr := do(t, srv, http.MethodDelete, "/api/runs/run-cancel-ok", nil)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("want 204, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+
+	// Run should now be cancelled
+	rr2 := do(t, srv, http.MethodGet, "/api/runs/run-cancel-ok", nil)
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("want 200 after cancel, got %d", rr2.Code)
+	}
+	var resp map[string]interface{}
+	decodeJSON(t, rr2, &resp)
+	if resp["status"] != "cancelled" {
+		t.Errorf("want status 'cancelled', got %v", resp["status"])
+	}
+}
+
+func TestCancelRun_NotFound(t *testing.T) {
+	srv := newTestServer(t)
+	rr := do(t, srv, http.MethodDelete, "/api/runs/nonexistent-run", nil)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("want 404, got %d", rr.Code)
+	}
+}
+
+func TestCancelRun_AlreadyTerminal(t *testing.T) {
+	srv := newTestServer(t)
+	now := time.Now()
+	run := &db.Run{
+		ID:         "run-cancel-done",
+		PipelineID: "pipe-1",
+		Status:     "success",
+		StartTime:  now,
+	}
+	if err := srv.db.CreateRun(run); err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+
+	rr := do(t, srv, http.MethodDelete, "/api/runs/run-cancel-done", nil)
+	if rr.Code != http.StatusConflict {
+		t.Errorf("want 409, got %d", rr.Code)
+	}
+}
+
 // ---------- GET /api/runs/{id}/nodes ----------
 
 func TestGetRunNodes_Empty(t *testing.T) {

@@ -44,6 +44,8 @@ type NodeLog struct {
 	PromptTokens int             `json:"prompt_tokens,omitempty"`
 	CompletionTokens int         `json:"completion_tokens,omitempty"`
 	TotalTokens  int             `json:"total_tokens,omitempty"`
+	InputText    string          `json:"input_text,omitempty"`
+	OutputText   string          `json:"output_text,omitempty"`
 }
 
 // RunLog is the complete log of a pipeline run
@@ -224,7 +226,7 @@ func (e *Engine) Run(ctx context.Context, graph *parser.Graph, runID, pipelineID
 			nodeLog.Notes = outcome.Notes
 			nodeLog.FailureReason = outcome.FailureReason
 
-			// Extract token counts from context updates
+			// Extract token counts and input/output text from context updates
 			if outcome.ContextUpdates != nil {
 				if m := outcome.ContextUpdates["last_model"]; m != "" {
 					nodeLog.Model = m
@@ -235,6 +237,8 @@ func (e *Engine) Run(ctx context.Context, graph *parser.Graph, runID, pipelineID
 				runLog.TotalPromptTokens += nodeLog.PromptTokens
 				runLog.TotalCompletionTokens += nodeLog.CompletionTokens
 				runLog.TotalTokens += nodeLog.TotalTokens
+				nodeLog.InputText = outcome.ContextUpdates["input_text"]
+				nodeLog.OutputText = outcome.ContextUpdates["output_text"]
 			}
 
 			runLog.NodeLogs = append(runLog.NodeLogs, nodeLog)

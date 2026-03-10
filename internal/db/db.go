@@ -66,6 +66,8 @@ type NodeLog struct {
 	TotalTokens      int       `json:"total_tokens"`
 	Notes            string    `json:"notes,omitempty"`
 	FailureReason    string    `json:"failure_reason,omitempty"`
+	InputText        string    `json:"input_text,omitempty"`
+	OutputText       string    `json:"output_text,omitempty"`
 }
 
 // Open opens (or creates) the SQLite database
@@ -139,6 +141,8 @@ func (d *DB) migrate() error {
 			total_tokens      INTEGER DEFAULT 0,
 			notes             TEXT,
 			failure_reason    TEXT,
+			input_text        TEXT,
+			output_text       TEXT,
 			FOREIGN KEY (run_id) REFERENCES runs(id)
 		);
 
@@ -147,7 +151,16 @@ func (d *DB) migrate() error {
 		CREATE INDEX IF NOT EXISTS idx_runs_start_time ON runs(start_time);
 		CREATE INDEX IF NOT EXISTS idx_node_logs_run_id ON node_logs(run_id);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Add columns for existing databases (safe to call if columns already exist)
+	for _, col := range []string{"input_text", "output_text"} {
+		_, _ = d.db.Exec(fmt.Sprintf("ALTER TABLE node_logs ADD COLUMN %s TEXT", col))
+	}
+
+	return nil
 }
 
 // UpsertPipeline creates or updates a pipeline record
@@ -312,16 +325,35 @@ func (d *DB) ListRuns(pipelineID string, limit int) ([]*Run, error) {
 	return runs, rows.Err()
 }
 
+// CancelRun marks a running run as cancelled. Returns (true, nil) if the run
+// was updated, or (false, nil) if it does not exist or is not in "running" state.
+func (d *DB) CancelRun(id string) (bool, error) {
+	now := time.Now()
+	res, err := d.db.Exec(`
+		UPDATE runs SET status='cancelled', end_time=? WHERE id=? AND status='running'
+	`, now, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 // InsertNodeLog inserts a node execution log
 func (d *DB) InsertNodeLog(nl *NodeLog) error {
 	_, err := d.db.Exec(`
 		INSERT INTO node_logs (run_id, node_id, node_label, node_type, status, attempt_num,
 		                       start_time, end_time, duration_ms, model, prompt_tokens,
-		                       completion_tokens, total_tokens, notes, failure_reason)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                       completion_tokens, total_tokens, notes, failure_reason,
+		                       input_text, output_text)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, nl.RunID, nl.NodeID, nl.NodeLabel, nl.NodeType, nl.Status, nl.AttemptNum,
 		nl.StartTime, nl.EndTime, nl.DurationMs, nl.Model, nl.PromptTokens,
-		nl.CompletionTokens, nl.TotalTokens, nl.Notes, nl.FailureReason)
+		nl.CompletionTokens, nl.TotalTokens, nl.Notes, nl.FailureReason,
+		nl.InputText, nl.OutputText)
 	return err
 }
 
@@ -330,7 +362,8 @@ func (d *DB) GetNodeLogs(runID string) ([]*NodeLog, error) {
 	rows, err := d.db.Query(`
 		SELECT id, run_id, node_id, node_label, node_type, status, attempt_num,
 		       start_time, end_time, duration_ms, model, prompt_tokens,
-		       completion_tokens, total_tokens, notes, failure_reason
+		       completion_tokens, total_tokens, notes, failure_reason,
+		       input_text, output_text
 		FROM node_logs WHERE run_id=? ORDER BY id ASC
 	`, runID)
 	if err != nil {
@@ -341,17 +374,19 @@ func (d *DB) GetNodeLogs(runID string) ([]*NodeLog, error) {
 	var logs []*NodeLog
 	for rows.Next() {
 		var nl NodeLog
-		var model, notes, failureReason sql.NullString
+		var model, notes, failureReason, inputText, outputText sql.NullString
 		err := rows.Scan(&nl.ID, &nl.RunID, &nl.NodeID, &nl.NodeLabel, &nl.NodeType,
 			&nl.Status, &nl.AttemptNum, &nl.StartTime, &nl.EndTime, &nl.DurationMs,
 			&model, &nl.PromptTokens, &nl.CompletionTokens, &nl.TotalTokens,
-			&notes, &failureReason)
+			&notes, &failureReason, &inputText, &outputText)
 		if err != nil {
 			return nil, err
 		}
 		nl.Model = model.String
 		nl.Notes = notes.String
 		nl.FailureReason = failureReason.String
+		nl.InputText = inputText.String
+		nl.OutputText = outputText.String
 		logs = append(logs, &nl)
 	}
 	return logs, rows.Err()

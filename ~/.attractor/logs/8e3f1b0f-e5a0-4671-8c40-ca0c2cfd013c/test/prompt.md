@@ -1,1 +1,0 @@
-Perform a basic test to ensure the pipeline is functioning correctly for the goal: Test the pipeline functionality

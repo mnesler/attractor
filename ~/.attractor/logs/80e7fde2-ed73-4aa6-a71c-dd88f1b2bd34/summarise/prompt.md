@@ -1,0 +1,1 @@
+You just ran a system check tool. Summarise the output in one sentence confirming Attractor is working.
